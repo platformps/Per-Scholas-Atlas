@@ -2,8 +2,8 @@
   "$schema": "../src/schema.json",
   "role_id": "cft",
   "role_name": "Critical Facilities Technician",
-  "version": "1.1.0",
-  "version_notes": "v1.1.0 (2026-04-27, pre-fetch addendum pass): §A1 word-boundary skill matching (optional `match_mode` on SkillEntry; auto-classified for ≤4-char or all-caps forms; trailing 's' allowed for plurals). §A2 regex-based experience disqualifier with proximity-to-required-word gate; `description_disqualifiers.experience` now an object {max_years_allowed: 3, patterns: [...]}. §A3 + §B3 rule-based tags (top-level `tags` block) evaluated independently of titleTier; legacy HEALTHCARE_CONTEXT tag retired; tier C/D `tag` field kept as fallback. §A5 Tier A title list extended with hyperscaler 'engineer' titles (Microsoft/Google/Meta/AWS). §B4 employer_watchlist.categories restructured to {is_healthcare, employers} so §A4 can use a healthcare-employer match as a Tier D gate signal. KNOWN ISSUE (§A6, queued for post-fetch tuning): OSHA 10, NFPA 70E, EPA 608 appear in BOTH core_skills and certifications and currently double-count (8 + 5 = 13 pts per single mention). Per Imran 2026-04-27 this is unintended; will be deduplicated in §C. v1.0.0 was the initial taxonomy derived from UCI 2137 (15 weeks, 412.5 instructional hours).",
+  "version": "1.1.1",
+  "version_notes": "v1.1.1 (2026-04-27, post-first-fetch §C tuning, additive): added 'engineering operations technician' to Tier A — Amazon's preferred title for Data Center technicians at AWS DC sites (DCC Communities). Verified against RapidAPI active-ats-7d: 10+ active postings nationwide (Manassas VA, Boardman OR, Gilroy CA, San Francisco) under organization='Amazon', source=amazon.jobs. Atlanta instance was outside the 7-day window during first fetch but expected to recur. Substring matching also covers 'Night Shift Engineering Operations Technician'; seniority exclusions (sr./senior/lead/iii) still bite first. v1.1.0 (2026-04-27, pre-fetch addendum pass): §A1 word-boundary skill matching (optional `match_mode` on SkillEntry; auto-classified for ≤4-char or all-caps forms; trailing 's' allowed for plurals). §A2 regex-based experience disqualifier with proximity-to-required-word gate; `description_disqualifiers.experience` now an object {max_years_allowed: 3, patterns: [...]}. §A3 + §B3 rule-based tags (top-level `tags` block) evaluated independently of titleTier; legacy HEALTHCARE_CONTEXT tag retired; tier C/D `tag` field kept as fallback. §A5 Tier A title list extended with hyperscaler 'engineer' titles (Microsoft/Google/Meta/AWS). §B4 employer_watchlist.categories restructured to {is_healthcare, employers} so §A4 can use a healthcare-employer match as a Tier D gate signal. KNOWN ISSUE (§A6, queued for post-fetch tuning): OSHA 10, NFPA 70E, EPA 608 appear in BOTH core_skills and certifications and currently double-count (8 + 5 = 13 pts per single mention). Per Imran 2026-04-27 this is unintended; will be deduplicated in §C. v1.0.0 was the initial taxonomy derived from UCI 2137 (15 weeks, 412.5 instructional hours).",
   "curriculum_source": {
     "course_code": "UCI 2137",
     "course_title": "Critical Facilities Technician",
@@ -19,7 +19,7 @@
 
   "title_tiers": {
     "A": {
-      "description": "Direct synonyms — auto-pass to skill verification, highest title score (40 pts). §A5: hyperscaler 'engineer' titles (Microsoft/Google/Meta/AWS) added 2026-04-27 — these employers use 'Data Center Engineer' for what others call 'Data Center Technician'. Level-suffixed variants ('engineer iii', 'engineer ii') are still rejected via title_exclusions.seniority, which runs before tier matching.",
+      "description": "Direct synonyms — auto-pass to skill verification, highest title score (40 pts). §A5: hyperscaler 'engineer' titles (Microsoft/Google/Meta/AWS) added 2026-04-27 — these employers use 'Data Center Engineer' for what others call 'Data Center Technician'. Level-suffixed variants ('engineer iii', 'engineer ii') are still rejected via title_exclusions.seniority, which runs before tier matching. v1.1.1 (post-first-fetch §C tuning): added 'engineering operations technician' — Amazon's canonical DC tech title at AWS sites; substring-matches 'Night Shift Engineering Operations Technician' too.",
       "score": 40,
       "phrases": [
         "critical facilities technician",
@@ -34,7 +34,8 @@
         "data center operations engineer",
         "datacenter engineer",
         "mission critical engineer",
-        "critical environment engineer"
+        "critical environment engineer",
+        "engineering operations technician"
       ]
     },
     "B": {

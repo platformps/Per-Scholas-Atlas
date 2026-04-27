@@ -108,14 +108,21 @@ export async function fetchActiveJobs(opts: FetchPageOptions): Promise<{
   const apiKey = process.env.RAPIDAPI_KEY;
   if (!apiKey) throw new Error('RAPIDAPI_KEY env var not set');
 
+  // Note on filters: we deliberately do NOT pass `ai_employment_type_filter`
+  // or `ai_experience_level_filter`. Those are AI-classified per-job fields;
+  // when null (which is common — many postings don't get classified), the
+  // job is excluded server-side and we lose recall. Our scoring engine does
+  // the same filtering post-fetch via `experience_filter.auto_reject_levels`
+  // and the §A2 description regex, with the added benefit of being able to
+  // see WHY each job was rejected (rejection_reason). Server-side AI filters
+  // were inherited from the Python worker pattern and dropped 2026-04-27 after
+  // empirical recall loss observed in the first Atlanta fetch (18 jobs).
   const params = new URLSearchParams({
     title_filter: opts.titleFilter,
     location_filter: opts.locationFilter,
     description_type: 'text',
     include_ai: 'true',
     include_li: 'true',
-    ai_employment_type_filter: 'FULL_TIME',
-    ai_experience_level_filter: '0-2,2-5',
     limit: String(opts.limit ?? 100),
     offset: String(opts.offset ?? 0),
   });
