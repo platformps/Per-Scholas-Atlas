@@ -39,21 +39,40 @@ export function buildTitleFilter(taxonomy: Taxonomy): string {
 }
 
 /**
- * Compose a location filter from a campus row in the form "City, ST"
- * (e.g. "Atlanta, GA"). RapidAPI's location_filter does fuzzy substring
- * matching against the job's locations_derived array — "Atlanta, GA"
- * matches "Atlanta, GA", "Atlanta, GA, USA", "Atlanta, GA, United States",
- * "Atlanta Metropolitan Area, GA", etc. with high recall.
- *
- * The earlier "ST, United States" pattern (Python worker + first TS draft)
- * matched almost nothing in practice — most aggregators don't index the
- * country-qualified state-code-only form.
+ * US state code → full name. The Active Jobs DB index stores
+ * locations_derived as `"City, <FullStateName>, United States"` — for
+ * example, `"Perry, Georgia, United States"`. The two-letter code does
+ * not appear in the indexed string, so a filter like `"Atlanta, GA"`
+ * substring-matches nothing. We translate the campus's `state` column
+ * (2-letter, per the seed) to the full name before building the filter.
+ */
+const US_STATE_NAMES: Record<string, string> = {
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
+  CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
+  HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
+  KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
+  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri',
+  MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
+  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
+  OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
+  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont',
+  VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
+  DC: 'District of Columbia',
+};
+
+/**
+ * Compose a location filter in the form "City, FullStateName"
+ * (e.g. "Atlanta, Georgia"). The Active Jobs DB API does fuzzy substring
+ * matching against locations_derived; this format is the substring most
+ * commonly present in real ATS-indexed location strings.
  *
  * The 100-mile haversine geofence in scoring picks up the precision; the
  * server-side filter just needs decent recall in the right metro.
  */
 export function buildLocationFilter(campus: { city: string; state: string }): string {
-  return `${campus.city}, ${campus.state}`;
+  const code = campus.state.toUpperCase();
+  const fullState = US_STATE_NAMES[code] ?? campus.state;
+  return `${campus.city}, ${fullState}`;
 }
 
 /**
