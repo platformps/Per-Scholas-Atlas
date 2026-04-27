@@ -1,0 +1,82 @@
+name: Weekly Job Fetch
+
+# Per BRIEF §14: GitHub Actions is the cron — Vercel /api/fetch-jobs does the
+# fetch + score + DB writes. The single TS scoring engine in
+# packages/scoring is the only source of truth (no Python re-implementation).
+#
+# Required secrets (Settings → Secrets and Variables → Actions):
+#   VERCEL_FETCH_URL   e.g. https://<your-app>.vercel.app/api/fetch-jobs
+#   CRON_SECRET        random 32+ char token; must match Vercel env var
+
+on:
+  schedule:
+    # Mondays at 10:00 UTC ≈ 5/6am ET depending on DST.
+    - cron: '0 10 * * 1'
+  workflow_dispatch:
+    inputs:
+      campus_id:
+        description: 'Campus filter (optional, e.g. "atlanta")'
+        required: false
+        type: string
+      role_id:
+        description: 'Role filter (optional, e.g. "cft")'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Vercel fetch route
+        env:
+          URL: ${{ secrets.VERCEL_FETCH_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # workflow_dispatch → manual ; cron → scheduled
+          TRIGGER_TYPE: ${{ github.event_name == 'workflow_dispatch' && 'manual' || 'scheduled' }}
+          CAMPUS_ID: ${{ inputs.campus_id }}
+          ROLE_ID: ${{ inputs.role_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::VERCEL_FETCH_URL or CRON_SECRET secret is missing"
+            exit 1
+          fi
+
+          BODY=$(jq -n \
+            --arg trigger "$TRIGGER_TYPE" \
+            --arg campus "$CAMPUS_ID" \
+            --arg role "$ROLE_ID" \
+            '{trigger_type: $trigger}
+             + (if $campus != "" then {campus_id: $campus} else {} end)
+             + (if $role   != "" then {role_id:   $role}   else {} end)')
+
+          echo "POST $URL"
+          echo "Body: $BODY"
+
+          # `--fail-with-body` keeps any error body for the log; `-w` appends
+          # the HTTP status so a non-2xx still surfaces visibly in CI output.
+          HTTP_CODE=$(curl --silent --show-error --fail-with-body \
+            -X POST "$URL" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H 'Content-Type: application/json' \
+            -d "$BODY" \
+            -o /tmp/fetch-response.json \
+            -w '%{http_code}') || true
+
+          echo "HTTP ${HTTP_CODE}"
+          echo '--- Response ---'
+          cat /tmp/fetch-response.json || true
+          echo
+
+          if [ "${HTTP_CODE}" -lt 200 ] || [ "${HTTP_CODE}" -ge 300 ]; then
+            echo "::error::Fetch route returned HTTP ${HTTP_CODE}. See response body above and the fetch_runs table."
+            exit 1
+          fi
+
+      - name: Notify on failure
+        if: failure()
+        run: echo "::warning::Weekly fetch failed. Check the fetch_runs table in Supabase for the error_message."

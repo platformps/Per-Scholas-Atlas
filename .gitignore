@@ -1,0 +1,45 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# next
+.next/
+out/
+
+# vercel
+.vercel
+
+# env
+.env
+.env.local
+.env*.local
+.env.production
+
+# build
+dist/
+build/
+*.tsbuildinfo
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# test
+coverage/
+
+# os / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# python (worker)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# data dumps (if any)
+data/
+*.local.json

@@ -1,0 +1,25 @@
+{
+  "name": "per-scholas-job-intel",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "db:migrate": "psql \"$DATABASE_URL\" -f packages/db/migrations/0001_initial.sql",
+    "db:seed": "psql \"$DATABASE_URL\" -f packages/db/seeds/0001_seed.sql",
+    "db:seed-taxonomy": "tsx packages/db/seeds/seed-taxonomy.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "tsx": "^4.16.0",
+    "vitest": "^2.0.0"
+  },
+  "packageManager": "pnpm@9.4.0"
+}

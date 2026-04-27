@@ -1,0 +1,339 @@
+{
+  "$schema": "../src/schema.json",
+  "role_id": "cft",
+  "role_name": "Critical Facilities Technician",
+  "version": "1.1.0",
+  "version_notes": "v1.1.0 (2026-04-27, pre-fetch addendum pass): §A1 word-boundary skill matching (optional `match_mode` on SkillEntry; auto-classified for ≤4-char or all-caps forms; trailing 's' allowed for plurals). §A2 regex-based experience disqualifier with proximity-to-required-word gate; `description_disqualifiers.experience` now an object {max_years_allowed: 3, patterns: [...]}. §A3 + §B3 rule-based tags (top-level `tags` block) evaluated independently of titleTier; legacy HEALTHCARE_CONTEXT tag retired; tier C/D `tag` field kept as fallback. §A5 Tier A title list extended with hyperscaler 'engineer' titles (Microsoft/Google/Meta/AWS). §B4 employer_watchlist.categories restructured to {is_healthcare, employers} so §A4 can use a healthcare-employer match as a Tier D gate signal. KNOWN ISSUE (§A6, queued for post-fetch tuning): OSHA 10, NFPA 70E, EPA 608 appear in BOTH core_skills and certifications and currently double-count (8 + 5 = 13 pts per single mention). Per Imran 2026-04-27 this is unintended; will be deduplicated in §C. v1.0.0 was the initial taxonomy derived from UCI 2137 (15 weeks, 412.5 instructional hours).",
+  "curriculum_source": {
+    "course_code": "UCI 2137",
+    "course_title": "Critical Facilities Technician",
+    "duration_weeks": 15,
+    "total_hours": 412.5,
+    "certifications": ["OSHA-10", "NFPA 70E", "EPA 608"],
+    "soc_codes": ["49-2095", "49-9041", "51-8013"],
+    "cip_codes": ["15.0503", "47.0101", "47.0201"]
+  },
+  "created_at": "2026-04-27",
+  "created_by": "shahparan.hasnat@gmail.com",
+  "active": true,
+
+  "title_tiers": {
+    "A": {
+      "description": "Direct synonyms — auto-pass to skill verification, highest title score (40 pts). §A5: hyperscaler 'engineer' titles (Microsoft/Google/Meta/AWS) added 2026-04-27 — these employers use 'Data Center Engineer' for what others call 'Data Center Technician'. Level-suffixed variants ('engineer iii', 'engineer ii') are still rejected via title_exclusions.seniority, which runs before tier matching.",
+      "score": 40,
+      "phrases": [
+        "critical facilities technician",
+        "data center facilities technician",
+        "data center technician",
+        "mission critical facilities technician",
+        "mission critical technician",
+        "critical environment technician",
+        "critical infrastructure technician",
+        "data center operations technician",
+        "data center engineer",
+        "data center operations engineer",
+        "datacenter engineer",
+        "mission critical engineer",
+        "critical environment engineer"
+      ]
+    },
+    "B": {
+      "description": "Family match — requires skill verification ≥ 4 core skills to keep full score (25 pts), else drops to 10.",
+      "score": 25,
+      "score_if_unverified": 10,
+      "min_core_skills_to_verify": 4,
+      "phrases": [
+        "facilities technician",
+        "facilities maintenance technician",
+        "building engineer",
+        "facilities engineer",
+        "mechanical technician",
+        "mep technician",
+        "plant operations technician",
+        "plant operator",
+        "operations technician",
+        "maintenance technician",
+        "industrial maintenance technician",
+        "power plant technician",
+        "substation technician"
+      ]
+    },
+    "C": {
+      "description": "Building Automation Track — graduates have partial qualification (PLC + BACnet/Modbus + cybersecurity from outline). Tagged BAS_TRACK.",
+      "score": 20,
+      "tag": "BAS_TRACK",
+      "phrases": [
+        "building automation technician",
+        "bas technician",
+        "controls technician",
+        "hvac controls technician"
+      ]
+    },
+    "D": {
+      "description": "Healthcare track — same skills, hospital-specific titles. Requires healthcare context to qualify. Tagged HEALTHCARE_TRACK.",
+      "score": 25,
+      "tag": "HEALTHCARE_TRACK",
+      "requires_healthcare_context": true,
+      "phrases": [
+        "hospital engineering technician",
+        "plant operations engineer",
+        "stationary engineer",
+        "hospital maintenance engineer",
+        "biomedical facilities technician"
+      ]
+    }
+  },
+
+  "title_exclusions": {
+    "description": "Hard reject if title contains any of these substrings.",
+    "seniority": [
+      "senior", " sr.", " sr ", "lead ", "principal", " staff ",
+      "manager", " mgr", "director", "supervisor", "architect",
+      "chief", "head of", "vice president",
+      " iii", " iv", " v ",
+      "level 3", "level 4", "level 5"
+    ],
+    "wrong_discipline": [
+      "electrical engineer",
+      "mechanical engineer",
+      "project engineer",
+      "design engineer",
+      "network architect",
+      "network engineer",
+      "software engineer",
+      "developer",
+      "sales",
+      "account executive",
+      "marketing",
+      "recruiter",
+      "quality engineer",
+      "process engineer",
+      "manufacturing engineer",
+      "application engineer"
+    ],
+    "controls_programming": [
+      "controls engineer",
+      "plc programmer",
+      "plc engineer",
+      "automation engineer",
+      "scada engineer"
+    ]
+  },
+
+  "description_disqualifiers": {
+    "description": "Hard reject if description_text contains any of these phrases.",
+    "credentials": [
+      "p.e. license required",
+      "pe license required",
+      "professional engineer license required",
+      "bachelor's degree required",
+      "bs required",
+      "four-year degree required",
+      "master's degree required",
+      "master electrician required",
+      "master electrician license required",
+      "journeyman electrician license required"
+    ],
+    "experience": {
+      "description": "§A2: regex-based experience filter. Reject when a captured year-count > max_years_allowed AND a 'required'-class word appears within ±50 chars of the match. Patterns capture both digit and spelled-out forms; the spelled standalone pattern relies on the proximity gate to suppress incidental phrases (e.g. 'four years ago').",
+      "max_years_allowed": 3,
+      "patterns": [
+        "(\\d+)\\)?\\+?\\s*(?:to\\s*\\d+\\s*)?years?'?\\s+(?:of\\s+)?(?:experience|exp\\b)",
+        "(?:minimum|at least|requires?)\\s+(?:of\\s+)?(\\d+|three|four|five|six|seven|eight|nine|ten)\\+?\\s*years?",
+        "(\\d+)\\s*[-–—]\\s*\\d+\\s*years?'?\\s+(?:of\\s+)?(?:experience|exp\\b)",
+        "\\b(three|four|five|six|seven|eight|nine|ten)\\+?\\s*years?\\b",
+        "\\b(\\d+)\\+\\s*years?\\b"
+      ]
+    }
+  },
+
+  "core_skills": {
+    "description": "Curriculum-confirmed skills taught extensively (≥4 days each in UCI 2137). Each match = 8 pts, capped at 40.",
+    "weight_per_match": 8,
+    "max_score": 40,
+    "skills": [
+      { "canonical": "UPS", "forms": ["ups", "uninterruptible power supply"], "curriculum_module": "Electrical Distribution Systems" },
+      { "canonical": "Standby Generator", "forms": ["standby generator", "backup generator", "emergency generator"], "curriculum_module": "Electrical Distribution Systems" },
+      { "canonical": "ATS", "forms": ["ats", "automatic transfer switch"], "curriculum_module": "Electrical Distribution Systems" },
+      { "canonical": "Electrical Distribution", "forms": ["electrical distribution", "power distribution"], "curriculum_module": "Electrical Distribution Systems" },
+      { "canonical": "PDU", "forms": ["pdu", "power distribution unit"], "curriculum_module": "Electrical Distribution Systems" },
+      { "canonical": "RPP", "forms": ["rpp", "remote power panel"], "curriculum_module": "Electrical Distribution Systems" },
+      { "canonical": "Switchgear", "forms": ["switchgear"], "curriculum_module": "Electrical Distribution Systems" },
+      { "canonical": "Circuit Breaker", "forms": ["circuit breaker", "breaker coordination"], "curriculum_module": "Electrical Distribution Systems" },
+      { "canonical": "Transformer", "forms": ["transformer"], "curriculum_module": "Electrical Distribution Systems" },
+      { "canonical": "Battery Maintenance", "forms": ["battery maintenance", "battery health", "battery bank"], "curriculum_module": "Electrical Distribution Systems" },
+      { "canonical": "HVAC", "forms": ["hvac", "heating ventilation"], "curriculum_module": "HVAC Fundamentals & EPA608" },
+      { "canonical": "Refrigeration Cycle", "forms": ["refrigeration cycle", "refrigeration system"], "curriculum_module": "HVAC Fundamentals & EPA608" },
+      { "canonical": "EPA 608", "forms": ["epa 608", "epa-608", "epa section 608", "epa608"], "curriculum_module": "HVAC Fundamentals & EPA608", "is_certification": true },
+      { "canonical": "Refrigerant Recovery", "forms": ["refrigerant recovery", "refrigerant handling"], "curriculum_module": "HVAC Fundamentals & EPA608" },
+      { "canonical": "Chiller", "forms": ["chiller", "chilled water"], "curriculum_module": "Critical Cooling Infrastructure" },
+      { "canonical": "CRAC", "forms": ["crac", "computer room air conditioning"], "curriculum_module": "Critical Cooling Infrastructure" },
+      { "canonical": "CRAH", "forms": ["crah", "computer room air handler"], "curriculum_module": "Critical Cooling Infrastructure" },
+      { "canonical": "Cooling Tower", "forms": ["cooling tower"], "curriculum_module": "Critical Cooling Infrastructure" },
+      { "canonical": "BMS/BAS", "forms": ["bms", "bas", "building management system", "building automation system"], "curriculum_module": "Integrated Building Management" },
+      { "canonical": "EPMS", "forms": ["epms", "electronic power monitoring", "electrical power monitoring"], "curriculum_module": "Electrical Distribution Systems" },
+      { "canonical": "NFPA 70E", "forms": ["nfpa 70e", "nfpa-70e", "nfpa70e"], "curriculum_module": "OSHA and NFPA Safety Training", "is_certification": true },
+      { "canonical": "OSHA 10", "forms": ["osha 10", "osha-10", "osha 10-hour"], "curriculum_module": "OSHA and NFPA Safety Training", "is_certification": true },
+      { "canonical": "LOTO", "forms": ["loto", "lockout tagout", "lockout/tagout", "lock out tag out"], "curriculum_module": "Basic Technician Skills and Safety" },
+      { "canonical": "SOP", "forms": ["sop", "standard operating procedure"], "curriculum_module": "Maintenance, Troubleshooting, SOP, MOP, EOP" },
+      { "canonical": "MOP", "forms": ["mop", "method of procedure"], "curriculum_module": "Maintenance, Troubleshooting, SOP, MOP, EOP" },
+      { "canonical": "EOP", "forms": ["eop", "emergency operating procedure", "emergency response"], "curriculum_module": "Maintenance, Troubleshooting, SOP, MOP, EOP" },
+      { "canonical": "Preventative Maintenance", "forms": ["preventative maintenance", "preventive maintenance"], "curriculum_module": "Maintenance, Troubleshooting, SOP, MOP, EOP" },
+      { "canonical": "Multimeter", "forms": ["multimeter", "dmm", "digital multimeter"], "curriculum_module": "Basic Electricity" }
+    ]
+  },
+
+  "specialized_skills": {
+    "description": "Hands-on lab skills with named systems. Each match = 4 pts, capped at 20.",
+    "weight_per_match": 4,
+    "max_score": 20,
+    "skills": [
+      { "canonical": "PLC", "forms": ["plc", "programmable logic controller"], "curriculum_module": "Basic PLCs and Control Logic" },
+      { "canonical": "Ladder Logic", "forms": ["ladder logic"], "curriculum_module": "Basic PLCs and Control Logic" },
+      { "canonical": "VFD", "forms": ["vfd", "variable frequency drive"], "curriculum_module": "Drive and Variable Frequency Drives" },
+      { "canonical": "BACnet", "forms": ["bacnet"], "curriculum_module": "Integrated Building Management" },
+      { "canonical": "Modbus", "forms": ["modbus"], "curriculum_module": "Integrated Building Management" },
+      { "canonical": "P&ID", "forms": ["p&id", "piping and instrumentation diagram"], "curriculum_module": "Basic Technician Skills and Safety" },
+      { "canonical": "Hot/Cold Aisle", "forms": ["hot aisle", "cold aisle", "aisle containment"], "curriculum_module": "Critical Cooling Infrastructure" },
+      { "canonical": "Containment", "forms": ["containment", "airflow management"], "curriculum_module": "Critical Cooling Infrastructure" },
+      { "canonical": "Hydronic", "forms": ["hydronic"], "curriculum_module": "Critical Cooling Infrastructure" },
+      { "canonical": "PID Control", "forms": ["pid control", "pid loop", "control loop"], "curriculum_module": "Integrated Building Management" },
+      { "canonical": "White Space", "forms": ["white space", "whitespace", "gray space"], "curriculum_module": "Critical Cooling Infrastructure" }
+    ]
+  },
+
+  "bonus_skills": {
+    "description": "Supporting topics. Each match = 1 pt, capped at 5. ONLY counts if at least one core skill OR industry context also matched (prevents manufacturing-floor false positives).",
+    "weight_per_match": 1,
+    "max_score": 5,
+    "requires_core_or_industry_match": true,
+    "skills": [
+      { "canonical": "Pumps", "forms": ["centrifugal pump", "positive displacement pump", "industrial pump"] },
+      { "canonical": "Valves", "forms": ["gate valve", "globe valve", "ball valve", "check valve"] },
+      { "canonical": "Pneumatics", "forms": ["pneumatic"] },
+      { "canonical": "Hydraulics", "forms": ["hydraulic"] },
+      { "canonical": "Sensors", "forms": ["sensor calibration", "pressure sensor", "temperature sensor"] },
+      { "canonical": "Motors", "forms": ["motor nameplate", "motor inspection"] },
+      { "canonical": "CMMS", "forms": ["cmms", "computerized maintenance management"] }
+    ]
+  },
+
+  "industry_context": {
+    "description": "Mission-critical environment signals. Each match = 3 pts, capped at 10.",
+    "weight_per_match": 3,
+    "max_score": 10,
+    "phrases": [
+      "mission critical", "mission-critical",
+      "data center", "datacenter",
+      "hyperscale",
+      "colocation", "co-location", " colo ",
+      "tier iii", "tier 3", "tier iv", "tier 4",
+      "24/7", "24x7", "round-the-clock",
+      "uptime", "high availability", "high-availability",
+      "sla", "service level agreement", "continuous operation",
+      "edge data center", "central office"
+    ]
+  },
+
+  "healthcare_context": {
+    "description": "Phrases indicating healthcare facility (qualifies Tier D titles).",
+    "phrases": ["hospital", "medical center", "healthcare facility", "health system", "clinical"]
+  },
+
+  "certifications": {
+    "description": "Per Scholas-earned certifications. Each match = 5 pts, capped at 15.",
+    "weight_per_match": 5,
+    "max_score": 15,
+    "certs": [
+      { "canonical": "OSHA 10", "forms": ["osha 10", "osha-10", "osha 10-hour"] },
+      { "canonical": "NFPA 70E", "forms": ["nfpa 70e", "nfpa-70e"] },
+      { "canonical": "EPA 608", "forms": ["epa 608", "epa-608", "epa section 608"] }
+    ]
+  },
+
+  "employer_watchlist": {
+    "description": "Known target employers. Match = +5 pts. §B4 (v1.1.0): each category now carries `is_healthcare` metadata so the Tier D gate (§A4) can use a healthcare-employer match as a healthcare context signal, in addition to description phrases and `linkedin_org_industry`.",
+    "weight_per_match": 5,
+    "categories": {
+      "hyperscale_cloud": {
+        "is_healthcare": false,
+        "employers": ["microsoft", "google", "meta", "amazon", "aws", "apple", "oracle"]
+      },
+      "colocation_wholesale": {
+        "is_healthcare": false,
+        "employers": ["switch", "digital realty", "qts", "equinix", "t5 data centers", "databank", "cyrusone", "cologix", "iron mountain", "flexential", "aligned data centers", "stack infrastructure", "edgeconnex", "h5 data centers", "compass datacenters"]
+      },
+      "telecom": {
+        "is_healthcare": false,
+        "employers": ["at&t", "t-mobile", "verizon", "lumen", "cox communications", "comcast"]
+      },
+      "healthcare_atlanta": {
+        "is_healthcare": true,
+        "employers": ["emory healthcare", "piedmont healthcare", "wellstar", "northside hospital", "grady health", "children's healthcare of atlanta", "choa", "kaiser permanente"]
+      },
+      "facilities_services": {
+        "is_healthcare": false,
+        "employers": ["jll", "cbre", "cushman & wakefield", "abm", "sodexo", "aramark", "iss", "emcor"]
+      }
+    }
+  },
+
+  "experience_filter": {
+    "description": "API-side filter + post-fetch tightening.",
+    "api_levels_allowed": ["0-2", "2-5"],
+    "auto_reject_levels": ["5-10", "10+"],
+    "post_fetch_penalty": {
+      "description": "If ai_experience_level is 2-5 BUT description requires >3 years, deduct 10 points.",
+      "patterns": ["more than [3-9] years", "[3-9]\\+ years", "minimum [3-9] years"],
+      "penalty": 10
+    }
+  },
+
+  "geography": {
+    "description": "Per-campus geofencing using haversine distance from campus coords against jobs' lats_derived/lngs_derived.",
+    "default_radius_miles": 100
+  },
+
+  "scoring": {
+    "thresholds": {
+      "high": 75,
+      "medium": 50,
+      "low": 30
+    },
+    "formula": [
+      "title_score (tier-based, 0-40)",
+      "+ core_skills_score (count * 8, capped at 40)",
+      "+ specialized_skills_score (count * 4, capped at 20)",
+      "+ bonus_skills_score (count * 1, capped at 5; requires core_match >= 1 OR industry_match >= 1)",
+      "+ certs_score (count * 5, capped at 15)",
+      "+ industry_context_score (count * 3, capped at 10)",
+      "+ employer_watchlist_score (5 if matched, else 0)",
+      "- experience_penalty (10 if applicable)",
+      "= raw_score",
+      "",
+      "Hard rejects (return REJECT regardless of score):",
+      "- Any title_exclusion match",
+      "- Any description_disqualifier match",
+      "- Outside geographic radius",
+      "- ai_experience_level in auto_reject_levels"
+    ]
+  },
+
+  "tags": {
+    "BAS_TRACK": {
+      "description": "Strong building-automation signal regardless of title tier (e.g., a Tier A CFT role heavy in BACnet/Modbus/PLC content).",
+      "rules": {
+        "any_of_skills": ["BACnet", "Modbus", "PLC", "BMS/BAS", "Ladder Logic", "PID Control"],
+        "min_matches": 2
+      }
+    },
+    "HEALTHCARE_TRACK": {
+      "description": "Healthcare facility employer, or strong healthcare context in title/description/industry.",
+      "rules": {
+        "any_of_employer_categories": ["healthcare_atlanta"],
+        "any_of_phrases": ["hospital", "medical center", "healthcare facility", "health system"],
+        "any_of_industries": ["hospital", "health care"]
+      }
+    }
+  }
+}
