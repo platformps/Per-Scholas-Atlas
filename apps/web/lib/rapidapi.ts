@@ -39,15 +39,21 @@ export function buildTitleFilter(taxonomy: Taxonomy): string {
 }
 
 /**
- * Compose a coarse-grained location filter from a campus row. We deliberately
- * pass STATE-LEVEL ("Georgia, United States") to the API and post-filter by
- * haversine in scoring. Reasons: (a) the API's `distance` param has been
- * inconsistent across endpoints, (b) we already need haversine for the
- * geofence anyway, (c) coarse server-side filter + precise client-side
- * filter is cheaper on quota.
+ * Compose a location filter from a campus row in the form "City, ST"
+ * (e.g. "Atlanta, GA"). RapidAPI's location_filter does fuzzy substring
+ * matching against the job's locations_derived array — "Atlanta, GA"
+ * matches "Atlanta, GA", "Atlanta, GA, USA", "Atlanta, GA, United States",
+ * "Atlanta Metropolitan Area, GA", etc. with high recall.
+ *
+ * The earlier "ST, United States" pattern (Python worker + first TS draft)
+ * matched almost nothing in practice — most aggregators don't index the
+ * country-qualified state-code-only form.
+ *
+ * The 100-mile haversine geofence in scoring picks up the precision; the
+ * server-side filter just needs decent recall in the right metro.
  */
-export function buildLocationFilter(campus: { state: string }): string {
-  return `${campus.state}, United States`;
+export function buildLocationFilter(campus: { city: string; state: string }): string {
+  return `${campus.city}, ${campus.state}`;
 }
 
 /**

@@ -12,6 +12,7 @@ import type { ScoreResult, Taxonomy, JobPayload, CampusContext } from '@per-scho
 export interface CampusRow {
   id: string;
   name: string;
+  city: string;
   state: string;
   lat: number;
   lng: number;
