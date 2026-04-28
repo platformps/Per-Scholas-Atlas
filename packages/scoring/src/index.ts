@@ -103,11 +103,31 @@ export function scoreJob(
   const industryMatched = matchPhrases(combinedTitleDesc, taxonomy.industry_context.phrases);
   const certsMatched = matchSkillEntries(allText, taxonomy.certifications.certs);
 
-  // Tier B verification: drop title score if too few core skills
+  // Tier B verification (§C v1.1.3 — two-stage demotion).
+  //
+  // 1) `score_if_no_industry_context` (new) — if this tier has the option set
+  //    and zero industry-context phrases matched in title+description, the
+  //    title score collapses to that value (typically 0). Catches the
+  //    "Tier B title + generic building-trade skills + no DC signal"
+  //    false-positive pattern (Cushman observation).
+  //
+  // 2) `score_if_unverified` (existing) — otherwise, if too few core skills
+  //    matched, drop the title score to the unverified value. The original
+  //    quality gate; covers cases where a JD has DC-context vocabulary but
+  //    the actual skill content is thin.
+  //
+  // Stage 1 takes precedence: a job with NO industry context shouldn't get
+  // any Tier B title points even if the skill bucket is full. Stage 2 only
+  // fires when stage 1 either isn't configured or didn't trip.
   if (titleTier === 'B') {
-    const minRequired = taxonomy.title_tiers.B.min_core_skills_to_verify ?? 4;
-    if (coreMatched.length < minRequired) {
-      titleScore = taxonomy.title_tiers.B.score_if_unverified ?? 10;
+    const tierB = taxonomy.title_tiers.B;
+    if (tierB.score_if_no_industry_context !== undefined && industryMatched.length === 0) {
+      titleScore = tierB.score_if_no_industry_context;
+    } else {
+      const minRequired = tierB.min_core_skills_to_verify ?? 4;
+      if (coreMatched.length < minRequired) {
+        titleScore = tierB.score_if_unverified ?? 10;
+      }
     }
   }
 

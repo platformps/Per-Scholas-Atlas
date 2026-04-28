@@ -57,6 +57,15 @@ export interface TitleTier {
   score: number;
   score_if_unverified?: number;
   min_core_skills_to_verify?: number;
+  /**
+   * §C v1.1.3: when this tier matches but `industryMatched.length === 0`,
+   * the title score collapses to this value regardless of core-skill count.
+   * Catches the "Tier B title + generic building-trade skills + no
+   * data-center signal" false positive (e.g., Cushman & Wakefield apartment
+   * maintenance scoring MEDIUM under v1.1.2). When undefined, this gate
+   * does not fire — preserves backward-compat for tiers that don't need it.
+   */
+  score_if_no_industry_context?: number;
   tag?: string;
   requires_healthcare_context?: boolean;
   phrases: string[];

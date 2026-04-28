@@ -82,15 +82,77 @@ describe('scoreJob — Tier B verification', () => {
     expect(r.titleTier).toBe('B');
   });
 
-  it('Tier B with NO core skills → reduced title score, low confidence', () => {
+  it('Tier B with NO core skills BUT industry context → score_if_unverified path (10)', () => {
+    // Industry phrase added so the §C v1.1.3 no-industry-context demotion
+    // does NOT fire; this isolates the original score_if_unverified gate.
     const job = makeJob({
       title: 'Maintenance Technician',
       organization: 'Random Co',
-      description_text: 'General maintenance work. Pumps and valves.',
+      description_text: 'General maintenance work in a mission critical building. Pumps and valves.',
       ai_key_skills: ['Maintenance'],
     });
     const r = scoreJob(job, taxonomy, atlantaCampus);
     expect(r.titleScore).toBe(taxonomy.title_tiers.B.score_if_unverified);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §C v1.1.3 — Tier B requires industry-context match. Without one, the title
+// score collapses to `score_if_no_industry_context` (0 in cft.json) regardless
+// of how many core skills hit. Catches the false-positive pattern observed in
+// the first real Atlanta fetch (2026-04-27): Cushman & Wakefield "Maintenance
+// Technician" with HVAC + EPA 608 + EOP + Preventative Maintenance + watchlist
+// hit + zero data-center vocabulary, scoring 68 MEDIUM under v1.1.2.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('scoreJob — §C v1.1.3 Tier B no-industry-context demotion', () => {
+  it('Tier B + 4 core skills + NO industry context → titleScore collapses to 0', () => {
+    const job = makeJob({
+      title: 'Maintenance Technician',
+      organization: 'Random Co',
+      description_text:
+        'Operate HVAC systems, perform EPA 608 refrigerant work, execute EOPs, ensure preventative maintenance for residential and office properties.',
+      ai_key_skills: ['HVAC', 'EPA 608', 'EOP', 'Preventative Maintenance'],
+    });
+    const r = scoreJob(job, taxonomy, atlantaCampus);
+    expect(r.titleTier).toBe('B');
+    expect(r.titleScore).toBe(0);
+    // With 0 title + ~32 core + cert double-count + maybe watchlist, total
+    // should land in LOW (≥30) or REJECT (<30). Critically NOT MEDIUM.
+    expect(['LOW', 'REJECT']).toContain(r.confidence);
+  });
+
+  it('Tier B + 4 core skills + AT LEAST 1 industry phrase → titleScore stays full (25)', () => {
+    const job = makeJob({
+      title: 'Maintenance Technician',
+      organization: 'Random Co',
+      description_text:
+        'Operate HVAC, EPA 608 refrigerant work, EOPs, preventative maintenance in a mission critical environment.',
+      ai_key_skills: ['HVAC', 'EPA 608', 'EOP'],
+    });
+    const r = scoreJob(job, taxonomy, atlantaCampus);
+    expect(r.titleTier).toBe('B');
+    expect(r.titleScore).toBe(taxonomy.title_tiers.B.score);
+  });
+
+  it('Cushman regression: apartment-maintenance JD lands in LOW, not MEDIUM (was 68 under v1.1.2)', () => {
+    // Mirrors the actual fetch_run record from 2026-04-27 — Tier B title,
+    // 4 generic building-trade core skills, watchlist hit, zero DC vocab.
+    // NOTE: be careful not to write "refrigerant recovery" — that's a
+    // separate core canonical and would push core to 5 hits / 40 pts capped,
+    // which together with the other contributors clears the MEDIUM threshold
+    // and defeats the regression guard.
+    const job = makeJob({
+      title: 'Maintenance Technician',
+      organization: 'Cushman & Wakefield',
+      description_text:
+        'Maintain residential and office properties. Job duties include HVAC service work, EPA 608 compliance, executing EOPs, and preventative maintenance on schedule.',
+      ai_key_skills: ['HVAC'],
+    });
+    const r = scoreJob(job, taxonomy, atlantaCampus);
+    expect(r.titleTier).toBe('B');
+    expect(r.titleScore).toBe(0);
+    expect(r.confidence).not.toBe('MEDIUM');
+    expect(r.confidence).not.toBe('HIGH');
   });
 });
 
