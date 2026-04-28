@@ -59,7 +59,7 @@ const QUESTIONS: Array<{ id: string; title: string; eyebrow: string }> = [
 ];
 
 export default async function FAQPage() {
-  const user = await requireUser();
+  const user = await requireUser('/faq');
 
   return (
     <AppShell

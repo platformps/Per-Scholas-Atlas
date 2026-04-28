@@ -57,7 +57,15 @@ interface HomePageProps {
 }
 
 export default async function HomePage({ searchParams }: HomePageProps) {
-  const user = await requireUser();
+  // Preserve any URL params (campus / role / confidence) through the login
+  // bounce so deep-linked dashboard URLs survive an unauthenticated visit.
+  const qs = new URLSearchParams();
+  if (searchParams.campus) qs.set('campus', searchParams.campus);
+  if (searchParams.role) qs.set('role', searchParams.role);
+  if (searchParams.confidence) qs.set('confidence', searchParams.confidence);
+  const homePath = qs.toString() ? `/?${qs.toString()}` : '/';
+
+  const user = await requireUser(homePath);
   const supabase = createClient();
 
   const activeCampusId = searchParams.campus?.trim() || null;

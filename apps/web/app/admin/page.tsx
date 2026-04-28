@@ -20,7 +20,7 @@ const QUOTA_BLOCK_RATIO = 0.15;
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPage() {
-  const user = await requireAdmin();
+  const user = await requireAdmin('/admin');
   const supabase = createClient();
 
   // Active pairs grouped by role for the redesigned manual fetch section

@@ -15,7 +15,13 @@ const ALLOWED_DOMAIN = 'perscholas.org';
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  const next = searchParams.get('next') ?? '/';
+  // Open-redirect guard: only honor same-origin internal paths. Anything
+  // that starts with // or has a scheme could be an off-site URL and we
+  // refuse to bounce there.
+  const rawNext = searchParams.get('next');
+  const next = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//')
+    ? rawNext
+    : '/';
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=oauth_failed`);

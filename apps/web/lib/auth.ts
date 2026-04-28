@@ -42,19 +42,30 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 
 /**
  * Require an authenticated user. Redirects to /login if not.
+ *
+ * @param redirectAfter — optional path the user should land on after a
+ *   successful sign-in. Encoded into ?next=… on the /login URL so the
+ *   sign-in flow can carry it through the OAuth round-trip and the
+ *   /auth/callback handler can route them back. Pass it from each page
+ *   so deep links (e.g. someone shares /faq) survive the login bounce.
  */
-export async function requireUser(): Promise<SessionUser> {
+export async function requireUser(redirectAfter?: string): Promise<SessionUser> {
   const user = await getCurrentUser();
-  if (!user) redirect('/login');
+  if (!user) {
+    const target = redirectAfter
+      ? `/login?next=${encodeURIComponent(redirectAfter)}`
+      : '/login';
+    redirect(target);
+  }
   return user;
 }
 
 /**
  * Require an admin user. Redirects to / if authenticated but not admin,
- * to /login if not authenticated at all.
+ * to /login (preserving the next path) if not authenticated at all.
  */
-export async function requireAdmin(): Promise<SessionUser> {
-  const user = await requireUser();
+export async function requireAdmin(redirectAfter?: string): Promise<SessionUser> {
+  const user = await requireUser(redirectAfter);
   if (user.role !== 'admin') redirect('/');
   return user;
 }

@@ -36,10 +36,25 @@ export default function LoginPage() {
   const supabase = createClient();
 
   async function signInWithGoogle() {
+    // Preserve ?next=… from the current URL through the OAuth round-trip
+    // so deep links work. We read window.location.search directly here
+    // (this is a click handler, not a render path) to avoid pulling
+    // useSearchParams into the parent component — that would force the
+    // whole page out of static prerender. The /auth/callback handler
+    // reads `next` and routes the user back to it after sign-in.
+    const nextRaw = new URLSearchParams(window.location.search).get('next');
+    // Only honor same-origin internal paths to prevent open-redirect abuse
+    // (e.g. ?next=https://evil.example/phish).
+    const safeNext = nextRaw && nextRaw.startsWith('/') && !nextRaw.startsWith('//')
+      ? nextRaw
+      : '/';
+    const callback = new URL('/auth/callback', window.location.origin);
+    if (safeNext !== '/') callback.searchParams.set('next', safeNext);
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: callback.toString(),
         // Restricts Google's account chooser to the Per Scholas Workspace.
         // The hd parameter is honored by Google for hosted-domain accounts.
         queryParams: { hd: ALLOWED_DOMAIN, prompt: 'select_account' },
