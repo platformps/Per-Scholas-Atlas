@@ -132,8 +132,49 @@ async function runPair(
   const fetchRunId = (runIns as { id: string }).id;
 
   try {
-    // Load jobs to rescore
-    let jq = sb.from('jobs').select('*').limit(MAX_JOBS_PER_PAIR);
+    // Load jobs to rescore — but ONLY jobs that this campus has already
+    // scored at least once. Without this scoping the rescore expands into
+    // cross-campus combinations: an Atlanta job gets a "outside radius"
+    // REJECT row for every other campus, multiplying the score-row count
+    // 25× and dragging the dashboard's pass rate from 9% to 0.4% even
+    // though the underlying signal didn't change. Each campus only ever
+    // fetches jobs near itself, so we restrict the rescore to that same
+    // set of (job, campus) pairs.
+    const { data: priorScoreJobIds, error: idsErr } = await sb
+      .from('job_scores')
+      .select('job_id')
+      .eq('campus_id', campus.id);
+    if (idsErr) throw new Error(`Prior-score lookup failed: ${idsErr.message}`);
+    const jobIdSet = new Set(
+      ((priorScoreJobIds ?? []) as Array<{ job_id: string }>).map(r => r.job_id),
+    );
+    if (jobIdSet.size === 0) {
+      // No prior scores for this campus — nothing to rescore. (Fresh
+      // campus that never had a fetch run yet.)
+      await sb
+        .from('fetch_runs')
+        .update({
+          status: 'success',
+          completed_at: new Date().toISOString(),
+          duration_ms: Date.now() - startedAt,
+          jobs_returned: 0,
+          scores_computed: 0,
+        })
+        .eq('id', fetchRunId);
+      return {
+        campus_id: campus.id,
+        role_id: role.id,
+        status: 'no_jobs',
+        fetch_run_id: fetchRunId,
+        jobs_scored: 0,
+      };
+    }
+
+    let jq = sb
+      .from('jobs')
+      .select('*')
+      .in('id', Array.from(jobIdSet))
+      .limit(MAX_JOBS_PER_PAIR);
     if (!body.include_inactive) {
       jq = jq.eq('still_active', true);
     }
