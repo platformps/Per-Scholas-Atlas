@@ -59,11 +59,17 @@ export function scoreJob(
   // vocabulary (rack-and-stack, fiber, RMA, GPU clusters, etc.) AND lacks
   // any electromechanical / facilities signal, the job is the IT track —
   // wrong Per Scholas program, hard reject regardless of title.
+  //
+  // v1.1.4-fix1: short tokens (≤4 chars or all-caps acronyms) need
+  // word-boundary matching, not naive substring. Without it, "bas" matches
+  // "based", "ats" matches "thermostats", "mop" matches "compose", etc.,
+  // and the absent_signals check spuriously suppresses the rule. We mirror
+  // the §A1 auto-classification used elsewhere in the engine.
   const wdRule = taxonomy.description_disqualifiers.wrong_discipline_it;
   if (wdRule) {
-    const indicatorHits = wdRule.indicators.filter(p => descLower.includes(p));
+    const indicatorHits = wdRule.indicators.filter(p => disqualifierMatch(descLower, p));
     if (indicatorHits.length >= wdRule.min_indicators) {
-      const cftSignalHits = wdRule.absent_signals.filter(p => descLower.includes(p));
+      const cftSignalHits = wdRule.absent_signals.filter(p => disqualifierMatch(descLower, p));
       if (cftSignalHits.length === 0) {
         return rejectResult(
           base,
@@ -310,6 +316,30 @@ function matchesForm(text: string, form: string, mode: MatchMode): boolean {
   const lower = form.toLowerCase();
   if (mode === 'substring') return text.includes(lower);
   return buildWordRegex(lower).test(text);
+}
+
+/**
+ * Phrase match for the v1.1.4 wrong_discipline_it rule (and any future
+ * disqualifier list of bare phrases). Auto-classifies short / all-caps
+ * tokens as word-boundary matches — same heuristic as the skill-form
+ * auto-classifier — so 'bas' does not match 'based', 'ats' does not match
+ * 'thermostats', 'mop' does not match 'compose', etc.
+ *
+ * Multi-word phrases (≥5 chars with a space) use plain substring since
+ * collisions are vanishingly rare and word-boundary regex over phrases
+ * with punctuation gets brittle.
+ */
+function disqualifierMatch(text: string, phrase: string): boolean {
+  const lower = phrase.toLowerCase();
+  // ≤4 char tokens, or single tokens of all-letters/digits → word-boundary.
+  // Examples that need this: ats, bas, bms, pdu, rpp, mop, eop, sop, ups,
+  // loto, crac, crah, rma, cmms.
+  const isShortOrAcronym =
+    lower.length <= 4 || /^[a-z0-9_-]+$/i.test(lower);
+  if (isShortOrAcronym && !lower.includes(' ')) {
+    return buildWordRegex(lower).test(text);
+  }
+  return text.includes(lower);
 }
 
 function matchSkillEntries(text: string, entries: SkillEntry[]): string[] {
