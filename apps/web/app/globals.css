@@ -2,11 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Per Scholas brand: light theme. Body is black/gray on white per the
+   brand book ("Keep typography black and gray on white, with orange or
+   royal for emphasis"). */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
-body {
-  background: #09090b;
-  color: #e4e4e7;
+html, body {
+  background: #ffffff;
+  color: #111827; /* near-black; gives a subtle warmth vs pure #000 */
+}
+
+/* Numerical / monospace surfaces (job IDs, timestamps, counts) */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Brand-friendly focus ring — uses Royal so it reads on white */
+*:focus-visible {
+  outline: 2px solid #0079C0;
+  outline-offset: 2px;
+}
+
+/* A subtle geometric accent strip you can drop into headers — echoes the
+   brand book's "geometric supergraphics" without committing to large
+   triangle blocks. Use as <div class="brand-accent-bar" /> */
+.brand-accent-bar {
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    #071E39 0%,
+    #09507C 25%,
+    #0079C0 50%,
+    #009CDB 75%,
+    #FF8000 100%
+  );
 }

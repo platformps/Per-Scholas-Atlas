@@ -1,8 +1,12 @@
 'use client';
 
-// Triggers POST /api/fetch-jobs with trigger_type=manual. Disabled while
-// pending so a panicked admin double-clicking doesn't burn 2x quota
-// (BRIEF §13). The route also enforces a 24h throttle per (campus, role) —
+// Manual fetch button — admin CTA. This is the ONE place ORANGE is used in
+// the dashboard, per the brand book ("Use color with restraint... orange or
+// royal for emphasis"). Reserving brand orange for this single action
+// preserves its signal value: the button means "spend RapidAPI quota now."
+//
+// Disabled while pending so a panicked admin double-clicking doesn't burn
+// 2× quota (BRIEF §13). The route also enforces a 24h throttle per pair —
 // this button is the user-side half of that contract.
 
 import { useState } from 'react';
@@ -71,7 +75,6 @@ export function ManualFetchButton({
           ? `Fetched ${totalJobs} jobs across ${ok.length} pair${ok.length === 1 ? '' : 's'}.`
           : `${ok.length} ok, ${fail.length} failed: ${fail.map(f => `${f.campus_id}/${f.role_id} (${f.status})`).join(', ')}`,
       );
-      // Refresh the server-rendered dashboard so new scores are visible.
       router.refresh();
     } catch (err) {
       setPhase('error');
@@ -82,28 +85,38 @@ export function ManualFetchButton({
   const isDisabled = disabled || phase === 'pending';
 
   return (
-    <div className="inline-flex flex-col items-start gap-1.5">
+    <div className="inline-flex flex-col items-start gap-2">
       <button
         type="button"
         onClick={trigger}
         disabled={isDisabled}
         aria-busy={phase === 'pending'}
         className={[
-          'inline-flex items-center gap-2 px-3 py-1.5 border text-[10px] font-mono uppercase tracking-widest transition-colors',
+          'inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-sm transition-colors',
           isDisabled
-            ? 'border-zinc-800 text-zinc-600 cursor-not-allowed'
-            : 'border-emerald-700 text-emerald-300 hover:bg-emerald-950/30',
+            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            : 'bg-orange text-white hover:bg-orange/90 active:bg-orange/80 shadow-sm',
         ].join(' ')}
       >
-        {phase === 'pending' ? 'Fetching…' : 'Manual Fetch'}
+        {phase === 'pending' ? (
+          <>
+            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.3" />
+              <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+            </svg>
+            Fetching…
+          </>
+        ) : (
+          'Manual Fetch'
+        )}
       </button>
       {disabled && disabledHint && (
-        <span className="text-[10px] font-mono text-zinc-600">{disabledHint}</span>
+        <span className="text-xs text-gray-500">{disabledHint}</span>
       )}
       {message && (
         <span
-          className={`text-[10px] font-mono ${
-            phase === 'success' ? 'text-emerald-400' : phase === 'error' ? 'text-orange-400' : 'text-zinc-500'
+          className={`text-xs ${
+            phase === 'success' ? 'text-royal' : phase === 'error' ? 'text-orange' : 'text-gray-500'
           }`}
         >
           {message}

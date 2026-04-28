@@ -1,19 +1,24 @@
-// Small reusable confidence badge. Single source of truth for the color
-// mapping so the dashboard, jobs table, and any future surfaces agree.
+// Confidence badge — single source of truth for the brand-aligned
+// HIGH/MEDIUM/LOW/REJECT visual treatment. Color choices follow the brand
+// book's restraint principle: HIGH/MEDIUM use the blue brand spectrum
+// (the strongest organizational signal), LOW gets warm yellow (caution),
+// REJECT is muted in cloud-gray. Orange is intentionally NOT used here —
+// it's reserved for the admin Manual Fetch CTA so the brand's primary
+// accent isn't diluted across every dashboard row.
 
 type Confidence = 'HIGH' | 'MEDIUM' | 'LOW' | 'REJECT';
 
 const STYLES: Record<Confidence, string> = {
-  HIGH:   'border-emerald-700 text-emerald-300 bg-emerald-950/30',
-  MEDIUM: 'border-amber-700 text-amber-300 bg-amber-950/30',
-  LOW:    'border-orange-700 text-orange-300 bg-orange-950/30',
-  REJECT: 'border-zinc-800 text-zinc-500 bg-zinc-950/40',
+  HIGH:   'bg-royal text-white',
+  MEDIUM: 'bg-ocean text-white',
+  LOW:    'bg-yellow text-night',
+  REJECT: 'bg-cloud text-gray-600',
 };
 
 export function ConfidenceBadge({ value }: { value: Confidence }) {
   return (
     <span
-      className={`inline-block border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest ${STYLES[value]}`}
+      className={`inline-block px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider rounded-sm ${STYLES[value]}`}
     >
       {value}
     </span>

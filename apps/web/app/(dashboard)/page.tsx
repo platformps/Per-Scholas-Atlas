@@ -1,3 +1,9 @@
+// Atlas dashboard — Per Scholas brand redesign.
+// Light surface, navy/royal/orange used per brand book. The header carries
+// the Atlas wordmark with Per Scholas attribution above it. Stat cards,
+// insight panels, and the jobs table are arranged in three vertical bands
+// with generous negative space.
+
 import { requireUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase-server';
 import { JobsTable } from '@/components/jobs-table';
@@ -12,7 +18,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const user = await requireUser();
   const supabase = createClient();
 
-  // Get active campus_roles
   const { data: campusRoles } = await supabase
     .from('campus_roles')
     .select('campus_id, role_id, campuses(*), roles(*)')
@@ -23,7 +28,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const activeCampus = campusRoles?.find(cr => cr.campus_id === activeCampusId)?.campuses as any;
   const activeRole = campusRoles?.find(cr => cr.role_id === activeRoleId)?.roles as any;
 
-  // Latest fetch run for this campus+role
   const { data: latestRun } = await supabase
     .from('fetch_runs')
     .select('*')
@@ -34,8 +38,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     .limit(1)
     .single();
 
-  // Most recent score per job (latest scored_at) for this campus
-  // Using a window function via raw SQL for accuracy; here a simpler approximation via recent fetch_run
   const { data: scoresRaw } = await supabase
     .from('job_scores')
     .select(`
@@ -52,7 +54,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   const scores = (scoresRaw ?? []).filter(s => s.jobs?.still_active !== false);
 
-  // Counts
   const counts = {
     HIGH: scores.filter(s => s.confidence === 'HIGH').length,
     MEDIUM: scores.filter(s => s.confidence === 'MEDIUM').length,
@@ -62,7 +63,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const total = scores.length;
   const qualifying = counts.HIGH + counts.MEDIUM + counts.LOW;
 
-  // Top skills (from non-reject)
   const skillFreq: Record<string, number> = {};
   scores.filter(s => s.confidence !== 'REJECT').forEach(s => {
     [...(s.core_matched as string[] ?? []), ...(s.specialized_matched as string[] ?? [])].forEach(skill => {
@@ -71,7 +71,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   });
   const topSkills = Object.entries(skillFreq).sort((a, b) => b[1] - a[1]).slice(0, 10);
 
-  // Top employers
   const empFreq: Record<string, number> = {};
   scores.filter(s => s.confidence !== 'REJECT' && s.jobs?.organization).forEach(s => {
     const org = s.jobs!.organization!;
@@ -79,7 +78,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   });
   const topEmployers = Object.entries(empFreq).sort((a, b) => b[1] - a[1]).slice(0, 8);
 
-  // Avg salary (qualifying only)
   const withSalary = scores.filter(s => s.confidence !== 'REJECT' && s.jobs?.ai_salary_min);
   const avgSalaryMin = withSalary.length
     ? withSalary.reduce((acc, s) => acc + (s.jobs!.ai_salary_min ?? 0), 0) / withSalary.length
@@ -89,39 +87,53 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     : 0;
 
   return (
-    <main className="min-h-screen">
-      {/* Header */}
-      <header className="border-b border-zinc-900 bg-black/40 sticky top-0 z-10 backdrop-blur">
-        <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
-          <div>
-            <div className="flex items-baseline gap-3">
-              <h1 className="text-lg font-semibold tracking-tight text-zinc-100">CFT.ATL</h1>
-              <span className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest">
-                {activeRole?.name ?? 'Role'} · {activeCampus?.name ?? 'Campus'} · v1
+    <main className="min-h-screen bg-white">
+      <div className="brand-accent-bar" aria-hidden />
+
+      <header className="border-b border-gray-200 bg-white">
+        <div className="max-w-[1600px] mx-auto px-6 py-5 flex items-center justify-between gap-6">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-royal mb-1">
+              Per Scholas
+            </div>
+            <div className="flex items-baseline gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold tracking-tight text-night">Atlas</h1>
+              <span className="text-sm text-gray-500">
+                {activeRole?.name ?? 'Role'} · {activeCampus?.name ?? 'Campus'}
               </span>
             </div>
-            <div className="text-xs text-zinc-500 mt-0.5 font-mono">
-              {activeCampus?.address} · {activeCampus?.default_radius_miles}mi radius ·{' '}
+            <div className="text-xs text-gray-500 mt-1.5">
+              {activeCampus?.address ?? ''}
+              {activeCampus?.default_radius_miles
+                ? ` · ${activeCampus.default_radius_miles}mi radius`
+                : ''}
+              {' · '}
               {latestRun
-                ? `Last fetch: ${new Date(latestRun.completed_at).toLocaleDateString()} (${latestRun.jobs_returned} jobs)`
-                : 'No fetches yet — scheduled cron runs Mon 6am ET'}
+                ? `Last fetch ${new Date(latestRun.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${latestRun.jobs_returned} jobs`
+                : 'No fetches yet — daily cron runs 6am ET'}
             </div>
           </div>
-          <div className="flex items-center gap-3 text-xs font-mono">
-            <span className="text-zinc-500">{user.email}</span>
+          <nav className="flex items-center gap-5 text-sm shrink-0">
+            <span className="hidden sm:inline text-gray-600">{user.email}</span>
             {user.role === 'admin' && (
-              <a href="/admin" className="text-emerald-400 hover:text-emerald-300 uppercase tracking-widest">
+              <a
+                href="/admin"
+                className="text-royal hover:text-navy font-semibold uppercase tracking-wider text-xs"
+              >
                 Admin
               </a>
             )}
-            <a href="/auth/signout" className="text-zinc-500 hover:text-zinc-300 uppercase tracking-widest">
+            <a
+              href="/auth/signout"
+              className="text-gray-500 hover:text-gray-800 uppercase tracking-wider text-xs"
+            >
               Sign out
             </a>
-          </div>
+          </nav>
         </div>
       </header>
 
-      <div className="max-w-[1600px] mx-auto px-6 py-6">
+      <div className="max-w-[1600px] mx-auto px-6 py-8 space-y-6">
         <StatCards
           total={total}
           qualifying={qualifying}
@@ -130,7 +142,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           avgSalaryMax={avgSalaryMax}
         />
 
-        <div className="grid grid-cols-3 gap-3 my-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <TopSkillsPanel skills={topSkills} />
           <TopEmployersPanel employers={topEmployers} />
           <ConfidenceDistributionPanel counts={counts} total={total} scores={scores} />
@@ -138,15 +150,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
         <JobsTable scores={scores} />
 
-        {/* Footer */}
-        <div className="mt-8 pt-6 border-t border-zinc-900 text-[10px] font-mono text-zinc-600 leading-relaxed">
-          <div className="mb-2 text-zinc-400 uppercase tracking-widest">Data Source</div>
-          <div>
-            Scores computed against active taxonomy v{(latestRun as any)?.taxonomy_version ?? '?'}.
-            Jobs sourced from Fantastic Jobs Active Jobs DB API (last 7-day window).
-            Fetch cadence: weekly (Monday 6am ET). To refresh manually, an admin can trigger a fetch from the Admin panel.
-          </div>
-        </div>
+        <footer className="pt-8 border-t border-gray-200 text-xs text-gray-500 leading-relaxed">
+          <div className="mb-2 font-semibold uppercase tracking-wider text-gray-700">Data source</div>
+          <p>
+            Scores computed against the active CFT taxonomy. Jobs sourced from the Fantastic Jobs
+            Active Jobs DB (rolling 7-day ATS window). Fetch cadence: daily at 10:00 UTC.
+            Admins can trigger a manual fetch from the Admin panel.
+          </p>
+          <p className="mt-3 text-gray-400">
+            Atlas is a Per Scholas internal tool · v1 · Atlanta · Critical Facilities Technician
+          </p>
+        </footer>
       </div>
     </main>
   );
