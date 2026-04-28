@@ -34,7 +34,16 @@ interface HeaderProps {
 export function Header({ subtitle, meta, nav }: HeaderProps) {
   return (
     <header className="border-b border-gray-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between gap-4 sm:gap-6">
+      {/*
+        Mobile: stack title block above nav (flex-col).
+        sm+:    side-by-side single-row layout (sm:flex-row sm:justify-between).
+
+        At narrow widths the title block + subtitle + nav can't fit on one
+        row, so we used to see the wrapped subtitle visually colliding with
+        the nav pills. Stacking eliminates that collision and gives both
+        regions full available width.
+      */}
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3 sm:py-5 flex flex-col gap-3 sm:gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3 sm:gap-5 min-w-0">
           <Link
             href="/"
@@ -46,25 +55,33 @@ export function Header({ subtitle, meta, nav }: HeaderProps) {
             <img
               src="/per-scholas-logo.png"
               alt="Per Scholas"
-              className="h-9 sm:h-10 w-auto shrink-0"
+              className="h-8 sm:h-10 w-auto shrink-0"
             />
             <div className="hidden sm:block h-10 w-px bg-gray-200 shrink-0" aria-hidden />
             <div className="min-w-0">
               <div className="flex items-baseline gap-2 sm:gap-3 flex-wrap">
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-night leading-none">
+                <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-night leading-none">
                   Atlas
                 </h1>
                 {subtitle}
               </div>
               {meta && (
-                <div className="text-xs text-gray-500 mt-1.5 line-clamp-2 sm:line-clamp-1">
+                <div className="hidden sm:block text-xs text-gray-500 mt-1.5 line-clamp-1">
                   {meta}
                 </div>
               )}
             </div>
           </Link>
         </div>
-        <nav className="flex items-center gap-2 sm:gap-3 shrink-0">{nav}</nav>
+        {/*
+          Mobile: nav row aligns to the start (left), with horizontal scroll
+          if pills overflow (rare — only happens for admin users with FAQ +
+          Admin both visible on a very narrow phone).
+          sm+: shrink-0 right-anchored on the same line as the title.
+        */}
+        <nav className="flex items-center gap-1.5 sm:gap-3 shrink-0 -mx-1 sm:mx-0 overflow-x-auto sm:overflow-visible">
+          {nav}
+        </nav>
       </div>
     </header>
   );

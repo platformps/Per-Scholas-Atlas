@@ -392,7 +392,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         <Header
           subtitle={
             <span className="text-sm text-gray-500">
-              Workforce intelligence · all campuses · all roles
+              Overview · all campuses · all roles
             </span>
           }
           meta={`${WINDOW_DAYS}-day rolling view${
