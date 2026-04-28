@@ -4,8 +4,8 @@
 
 import { requireAdmin } from '@/lib/auth';
 import { createClient } from '@/lib/supabase-server';
-import { ManualFetchButton } from '@/components/manual-fetch-button';
 import { PairManager, type CampusRow, type CampusOption, type RoleOption } from '@/components/pair-manager';
+import { ManualFetchSection, type RoleGroup } from '@/components/manual-fetch-section';
 import { ThresholdEditor } from '@/components/threshold-editor';
 import { WatchlistEditor } from '@/components/watchlist-editor';
 
@@ -18,11 +18,58 @@ export default async function AdminPage() {
   const user = await requireAdmin();
   const supabase = createClient();
 
-  // Active pairs (used for the Manual Fetch buttons up top)
-  const { data: campusRoles } = await supabase
+  // Active pairs grouped by role for the redesigned manual fetch section
+  const { data: activePairsRaw } = await supabase
     .from('campus_roles')
-    .select('campus_id, role_id, campuses(name), roles(name)')
+    .select('campus_id, role_id, campuses(id, name), roles(id, name)')
     .eq('active', true);
+
+  // Last successful real fetch per (campus, role) — exclude rescores; they're
+  // not "new market data" and showing a rescore as the "last fetch" would be
+  // misleading. Pull all and dedupe in JS (Supabase JS doesn't expose
+  // DISTINCT ON cleanly).
+  const { data: allFetchRunsRaw } = await supabase
+    .from('fetch_runs')
+    .select('campus_id, role_id, completed_at, trigger_type, status')
+    .eq('status', 'success')
+    .in('trigger_type', ['scheduled', 'manual'])
+    .order('completed_at', { ascending: false });
+
+  type LastFetch = { at: string; trigger_type: 'scheduled' | 'manual' };
+  const lastFetchByPair = new Map<string, LastFetch>();
+  for (const r of (allFetchRunsRaw as any[]) ?? []) {
+    if (!r.campus_id || !r.role_id || !r.completed_at) continue;
+    const key = `${r.campus_id}:${r.role_id}`;
+    if (!lastFetchByPair.has(key)) {
+      lastFetchByPair.set(key, {
+        at: r.completed_at as string,
+        trigger_type: r.trigger_type as 'scheduled' | 'manual',
+      });
+    }
+  }
+
+  // Group active pairs by role
+  const roleMap = new Map<string, RoleGroup>();
+  for (const p of (activePairsRaw as any[]) ?? []) {
+    const role = Array.isArray(p.roles) ? p.roles[0] : p.roles;
+    const campus = Array.isArray(p.campuses) ? p.campuses[0] : p.campuses;
+    if (!role || !campus) continue;
+    if (!roleMap.has(role.id)) {
+      roleMap.set(role.id, { role_id: role.id, role_name: role.name, campuses: [] });
+    }
+    roleMap.get(role.id)!.campuses.push({
+      campus_id: campus.id,
+      campus_name: campus.name,
+      last_fetch: lastFetchByPair.get(`${campus.id}:${role.id}`) ?? null,
+    });
+  }
+  // Sort campuses alphabetically within each role
+  for (const g of roleMap.values()) {
+    g.campuses.sort((a, b) => a.campus_name.localeCompare(b.campus_name));
+  }
+  const roleGroups: RoleGroup[] = Array.from(roleMap.values()).sort((a, b) =>
+    a.role_name.localeCompare(b.role_name),
+  );
 
   // ALL pairs (active + inactive) for the pair manager section
   const { data: allPairsRaw } = await supabase
@@ -170,30 +217,20 @@ export default async function AdminPage() {
 
       <div className="max-w-[1400px] mx-auto px-6 py-8 space-y-8">
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="bg-white border border-gray-200 rounded-md p-5 shadow-sm lg:col-span-2">
-            <SectionHeader label="Manual fetch" />
-            <p className="text-sm text-gray-600 mb-4 max-w-xl">
-              Triggers an immediate RapidAPI fetch and scoring run for active campus×role pairs.
-              Throttled at 1 per 24 hours per pair. Refused if quota is below {Math.round(QUOTA_BLOCK_RATIO * 100)}%.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              {(campusRoles as Array<{ campus_id: string; role_id: string; campuses: { name: string }; roles: { name: string } }> | null)?.map(cr => (
-                <div key={`${cr.campus_id}-${cr.role_id}`} className="border border-gray-200 rounded-md p-4 min-w-[260px] bg-cloud/40">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
-                    {cr.campuses?.name} · {cr.roles?.name}
-                  </div>
-                  <div className="text-xs text-gray-400 mb-3 font-mono">
-                    {cr.campus_id} / {cr.role_id}
-                  </div>
-                  <ManualFetchButton
-                    campusId={cr.campus_id}
-                    roleId={cr.role_id}
-                    disabled={quotaBlocked}
-                    disabledHint={quotaBlocked ? 'Blocked: quota below 15%.' : undefined}
-                  />
-                </div>
-              ))}
+          <div className="lg:col-span-2 space-y-3">
+            <div>
+              <SectionHeader label="Manual fetch" />
+              <p className="text-sm text-gray-600 mt-1 mb-4 max-w-xl">
+                Triggers an immediate RapidAPI fetch and scoring run. Per-campus throttled at 1 per
+                24 hours. Refused if quota is below {Math.round(QUOTA_BLOCK_RATIO * 100)}%. The
+                "Fetch all" button on each role triggers all of its active campuses in one call.
+              </p>
             </div>
+            <ManualFetchSection
+              roles={roleGroups}
+              quotaBlocked={quotaBlocked}
+              quotaHint={quotaBlocked ? 'Blocked: quota below 15%.' : undefined}
+            />
           </div>
 
           <div className="bg-white border border-gray-200 rounded-md p-5 shadow-sm">
