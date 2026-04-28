@@ -5,6 +5,9 @@
 import { requireAdmin } from '@/lib/auth';
 import { createClient } from '@/lib/supabase-server';
 import { ManualFetchButton } from '@/components/manual-fetch-button';
+import { PairManager, type CampusRow, type CampusOption, type RoleOption } from '@/components/pair-manager';
+import { ThresholdEditor } from '@/components/threshold-editor';
+import { WatchlistEditor } from '@/components/watchlist-editor';
 
 const QUOTA_MONTHLY = 20000;
 const QUOTA_BLOCK_RATIO = 0.15;
@@ -15,10 +18,87 @@ export default async function AdminPage() {
   const user = await requireAdmin();
   const supabase = createClient();
 
+  // Active pairs (used for the Manual Fetch buttons up top)
   const { data: campusRoles } = await supabase
     .from('campus_roles')
     .select('campus_id, role_id, campuses(name), roles(name)')
     .eq('active', true);
+
+  // ALL pairs (active + inactive) for the pair manager section
+  const { data: allPairsRaw } = await supabase
+    .from('campus_roles')
+    .select('campus_id, role_id, active, notes, campuses(name), roles(name)')
+    .order('active', { ascending: false })
+    .order('campus_id', { ascending: true });
+
+  // Full campus + role lists for the "add new pair" dropdowns
+  const [{ data: allCampusesRaw }, { data: allRolesRaw }] = await Promise.all([
+    supabase.from('campuses').select('id, name').order('name'),
+    supabase.from('roles').select('id, name').order('name'),
+  ]);
+
+  // Normalize Supabase's "join could be array or object" shape
+  const allPairs: CampusRow[] = ((allPairsRaw as any[]) ?? [])
+    .map((r): CampusRow | null => {
+      const campus = Array.isArray(r.campuses) ? r.campuses[0] : r.campuses;
+      const role = Array.isArray(r.roles) ? r.roles[0] : r.roles;
+      if (!campus || !role) return null;
+      return {
+        campus_id: r.campus_id as string,
+        campus_name: campus.name as string,
+        role_id: r.role_id as string,
+        role_name: role.name as string,
+        active: !!r.active,
+        notes: typeof r.notes === 'string' ? r.notes : null,
+      };
+    })
+    .filter((p): p is CampusRow => p !== null);
+
+  const allCampuses: CampusOption[] = ((allCampusesRaw as any[]) ?? []).map(c => ({
+    id: c.id as string,
+    name: c.name as string,
+  }));
+  const allRoles: RoleOption[] = ((allRolesRaw as any[]) ?? []).map(r => ({
+    id: r.id as string,
+    name: r.name as string,
+  }));
+
+  // Active taxonomies — one per role with at least one active pair. We feed
+  // these into the threshold/watchlist editors so the admin can tune the
+  // operational knobs on the running configuration.
+  const activeRoleIds = Array.from(new Set(allPairs.filter(p => p.active).map(p => p.role_id)));
+  const { data: activeTaxonomiesRaw } = activeRoleIds.length
+    ? await supabase
+        .from('taxonomies')
+        .select('id, role_id, version, schema')
+        .in('role_id', activeRoleIds)
+        .eq('active', true)
+    : { data: [] as any[] };
+  type TaxonomyEdit = {
+    id: string;
+    role_id: string;
+    role_name: string;
+    version: string;
+    thresholds: { high: number; medium: number; low: number };
+    weight_per_match: number;
+    categories: Record<string, { is_healthcare: boolean; employers: string[] }>;
+  };
+  const taxonomyEdits: TaxonomyEdit[] = ((activeTaxonomiesRaw as any[]) ?? [])
+    .map(t => {
+      const schema = t.schema as any;
+      const role = allRoles.find(r => r.id === t.role_id);
+      if (!schema?.scoring?.thresholds || !schema?.employer_watchlist || !role) return null;
+      return {
+        id: t.id as string,
+        role_id: t.role_id as string,
+        role_name: role.name,
+        version: t.version as string,
+        thresholds: schema.scoring.thresholds,
+        weight_per_match: schema.employer_watchlist.weight_per_match ?? 5,
+        categories: schema.employer_watchlist.categories ?? {},
+      };
+    })
+    .filter((t): t is TaxonomyEdit => t !== null);
 
   const { data: recentRuns } = await supabase
     .from('fetch_runs')
@@ -148,6 +228,50 @@ export default async function AdminPage() {
             )}
           </div>
         </section>
+
+        <section>
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-base font-semibold text-night">Campus × role pairs</h2>
+            <span className="text-xs text-gray-400">{allPairs.length} total · {allPairs.filter(p => p.active).length} active</span>
+          </div>
+          <PairManager pairs={allPairs} allCampuses={allCampuses} allRoles={allRoles} />
+        </section>
+
+        {taxonomyEdits.length > 0 && (
+          <section>
+            <div className="flex items-baseline justify-between mb-3">
+              <h2 className="text-base font-semibold text-night">Taxonomy tuning</h2>
+              <span className="text-xs text-gray-400">
+                {taxonomyEdits.length} active taxonom{taxonomyEdits.length === 1 ? 'y' : 'ies'}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mb-4 max-w-2xl">
+              Edit operational knobs on the active taxonomy for each role. Each save creates a
+              new patch version and deactivates the previous one — no redeploy required, but the
+              source <code className="text-night">cft.json</code> file in the repo goes out of sync
+              until reconciled.
+            </p>
+            <div className="space-y-5">
+              {taxonomyEdits.map(t => (
+                <div key={t.id} className="space-y-4">
+                  <ThresholdEditor
+                    roleId={t.role_id}
+                    roleName={t.role_name}
+                    taxonomyVersion={t.version}
+                    current={t.thresholds}
+                  />
+                  <WatchlistEditor
+                    roleId={t.role_id}
+                    roleName={t.role_name}
+                    taxonomyVersion={t.version}
+                    weightPerMatch={t.weight_per_match}
+                    categories={t.categories}
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section>
           <div className="flex items-baseline justify-between mb-3">

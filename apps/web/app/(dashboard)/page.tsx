@@ -26,6 +26,7 @@ import {
   TopEmployersPanel,
   ConfidenceDistributionPanel,
 } from '@/components/insights-panels';
+import { CampusRolePicker, type PairOption } from '@/components/campus-role-picker';
 
 const WINDOW_DAYS = 30;
 
@@ -47,6 +48,21 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const activeRoleId = searchParams.role ?? campusRoles?.[0]?.role_id ?? 'cft';
   const activeCampus = campusRoles?.find(cr => cr.campus_id === activeCampusId)?.campuses as any;
   const activeRole = campusRoles?.find(cr => cr.role_id === activeRoleId)?.roles as any;
+
+  // Picker options — handle both Supabase shapes (single object or array)
+  const pairOptions: PairOption[] = ((campusRoles as any[]) ?? [])
+    .map(cr => {
+      const campus = Array.isArray(cr.campuses) ? cr.campuses[0] : cr.campuses;
+      const role = Array.isArray(cr.roles) ? cr.roles[0] : cr.roles;
+      if (!campus || !role) return null;
+      return {
+        campus_id: cr.campus_id as string,
+        campus_name: campus.name as string,
+        role_id: cr.role_id as string,
+        role_name: role.name as string,
+      };
+    })
+    .filter((p): p is PairOption => p !== null);
 
   // ─── Latest successful fetch (for header timestamp + trend reference) ──
   const { data: latestRun } = await supabase
@@ -191,9 +207,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             <div className="min-w-0">
               <div className="flex items-baseline gap-3 flex-wrap">
                 <h1 className="text-2xl font-bold tracking-tight text-night leading-none">Atlas</h1>
-                <span className="text-sm text-gray-500">
-                  {activeRole?.name ?? 'Role'} · {activeCampus?.name ?? 'Campus'}
-                </span>
+                {pairOptions.length > 1 ? (
+                  <CampusRolePicker
+                    pairs={pairOptions}
+                    activeCampusId={activeCampusId}
+                    activeRoleId={activeRoleId}
+                  />
+                ) : (
+                  <span className="text-sm text-gray-500">
+                    {activeRole?.name ?? 'Role'} · {activeCampus?.name ?? 'Campus'}
+                  </span>
+                )}
               </div>
               <div className="text-xs text-gray-500 mt-1.5">
                 {activeCampus?.address ?? ''}
