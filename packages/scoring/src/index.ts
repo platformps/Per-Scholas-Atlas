@@ -127,30 +127,36 @@ export function scoreJob(
   const industryMatched = matchPhrases(combinedTitleDesc, taxonomy.industry_context.phrases);
   const certsMatched = matchSkillEntries(allText, taxonomy.certifications.certs);
 
-  // Tier B verification (§C v1.1.3 — two-stage demotion).
+  // Title-tier verification — two-stage demotion.
   //
-  // 1) `score_if_no_industry_context` (new) — if this tier has the option set
+  // 1) `score_if_no_industry_context` — if this tier has the option set
   //    and zero industry-context phrases matched in title+description, the
-  //    title score collapses to that value (typically 0). Catches the
-  //    "Tier B title + generic building-trade skills + no DC signal"
-  //    false-positive pattern (Cushman observation).
+  //    title score collapses to that value (typically 0). Originally a
+  //    Tier B-only check (§C v1.1.3, Cushman maintenance pattern), now
+  //    extended in v1.1.5-engine to apply to ANY tier that opts in. LVFT
+  //    v1.0.0 uses this on Tier A so a 'Fiber Optic Technician' title at
+  //    a non-telecom employer with zero fiber/cabling vocabulary collapses.
   //
-  // 2) `score_if_unverified` (existing) — otherwise, if too few core skills
-  //    matched, drop the title score to the unverified value. The original
-  //    quality gate; covers cases where a JD has DC-context vocabulary but
-  //    the actual skill content is thin.
+  // 2) `score_if_unverified` (existing, Tier B only) — otherwise, if too
+  //    few core skills matched, drop the title score to the unverified
+  //    value. Covers cases where a JD has DC-context vocabulary but the
+  //    actual skill content is thin.
   //
-  // Stage 1 takes precedence: a job with NO industry context shouldn't get
-  // any Tier B title points even if the skill bucket is full. Stage 2 only
-  // fires when stage 1 either isn't configured or didn't trip.
-  if (titleTier === 'B') {
-    const tierB = taxonomy.title_tiers.B;
-    if (tierB.score_if_no_industry_context !== undefined && industryMatched.length === 0) {
-      titleScore = tierB.score_if_no_industry_context;
-    } else {
-      const minRequired = tierB.min_core_skills_to_verify ?? 4;
+  // Stage 1 takes precedence: a job with NO industry context shouldn't
+  // get title points even if the skill bucket is full. Stage 2 only fires
+  // for Tier B and only when stage 1 either isn't configured or didn't
+  // trip.
+  if (titleTier !== null) {
+    const spec = taxonomy.title_tiers[titleTier];
+    if (
+      spec.score_if_no_industry_context !== undefined &&
+      industryMatched.length === 0
+    ) {
+      titleScore = spec.score_if_no_industry_context;
+    } else if (titleTier === 'B') {
+      const minRequired = spec.min_core_skills_to_verify ?? 4;
       if (coreMatched.length < minRequired) {
-        titleScore = tierB.score_if_unverified ?? 10;
+        titleScore = spec.score_if_unverified ?? 10;
       }
     }
   }

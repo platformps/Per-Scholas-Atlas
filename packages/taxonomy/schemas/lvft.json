@@ -1,0 +1,429 @@
+{
+  "$schema": "../src/schema.json",
+  "role_id": "lvft",
+  "role_name": "Low-Voltage Fiber Technician",
+  "version": "1.0.0",
+  "version_notes": "v1.0.0 (2026-04-28): initial taxonomy derived from UCI 1019 (12 weeks, 330 instructional hours). Per Scholas-Imran scoping: title tiers folded from 4 to 2 (Tier C/D dropped); AV/Security Installer titles live in Tier B; 'IT Infrastructure Technician' placed in Tier B (curriculum-listed but generic enough to risk pulling IT-side roles; the industry-context gate handles the false positives); 'Network Engineer' / 'Network Architect' excluded as IT-engineer-level; 'Network Technician' allowed (Tier B). Score-if-no-industry-context applied to BOTH Tier A and Tier B — every LVFT match requires at least one fiber / cabling / low-voltage / telecom signal phrase in the description, else the title score collapses to 0 (e.g., a generic 'field technician' role at a non-telecom employer with no cabling vocabulary lands at 0+skills, well into ADJACENT). Geography: 100mi default radius per Imran (matches CFT after this release). Pilot: active at all 25 Per Scholas campuses from day one (no per-campus rollout phase like CFT had).",
+  "curriculum_source": {
+    "course_code": "UCI 1019",
+    "course_title": "Low-Voltage Fiber Technician",
+    "duration_weeks": 12,
+    "total_hours": 330,
+    "certifications": ["OSHA-10", "NFPA 70E", "FOA CFOT"],
+    "soc_codes": ["49-2022", "49-9052", "17-3023"],
+    "cip_codes": ["15.0399", "15.0303"]
+  },
+  "created_at": "2026-04-28",
+  "created_by": "shahparan.hasnat@gmail.com",
+  "active": true,
+
+  "title_tiers": {
+    "A": {
+      "description": "Direct synonyms — auto-pass to skill verification, highest title score (40 pts). Includes the five curriculum-listed target placements (Fiber Optic Technician, Low Voltage Technician, Telecom Installer, Network Cabling Technician, IT Infrastructure Technician) plus their common variants. v1.0.0: requires at least one fiber/cabling/telecom industry-context phrase in description; without one the title score collapses to 0 (`score_if_no_industry_context`). Catches the false-positive pattern where a generic 'field technician' or 'IT infrastructure technician' title at a non-telecom employer has no cabling content.",
+      "score": 40,
+      "score_if_no_industry_context": 0,
+      "phrases": [
+        "fiber optic technician",
+        "fiber optic installer",
+        "fiber optic field technician",
+        "fiber technician",
+        "fiber installer",
+        "fiber splicer",
+        "fiber splicing technician",
+        "low voltage technician",
+        "low-voltage technician",
+        "low voltage installer",
+        "low-voltage installer",
+        "structured cabling technician",
+        "structured cabling installer",
+        "cabling technician",
+        "cable technician",
+        "cabling installer",
+        "telecom installer",
+        "telecom technician",
+        "telecommunications installer",
+        "telecommunications technician",
+        "network cabling technician",
+        "outside plant technician",
+        "osp technician",
+        "ftth technician",
+        "fttx technician"
+      ]
+    },
+    "B": {
+      "description": "Family match (25 pts). Broader telecom / installation / AV / security titles that LVFT graduates can credibly land. v1.0.0: same `score_if_no_industry_context: 0` gate as Tier A — requires fiber / cabling / low-voltage / telecom signal in description. Also the v1.1.0 (CFT-style) `score_if_unverified` two-stage demotion: even with industry context, requires ≥3 core skill matches to keep full 25; otherwise drops to 10. AV/Security Installer titles folded in here per scoping decision (originally a Tier C in the design draft); Per Scholas's 4-day Low Voltage Systems module covers CCTV / IP cameras / access control directly.",
+      "score": 25,
+      "score_if_unverified": 10,
+      "score_if_no_industry_context": 0,
+      "min_core_skills_to_verify": 3,
+      "phrases": [
+        "communications technician",
+        "field technician",
+        "field service technician",
+        "installation technician",
+        "infrastructure technician",
+        "it infrastructure technician",
+        "networking technician",
+        "network technician",
+        "premise technician",
+        "premises technician",
+        "broadband technician",
+        "isp technician",
+        "audio video technician",
+        "audio visual technician",
+        "av technician",
+        "av installer",
+        "security installer",
+        "security technician",
+        "cctv installer",
+        "cctv technician",
+        "access control technician",
+        "data technician",
+        "voice technician",
+        "voice and data technician"
+      ]
+    },
+    "C": {
+      "description": "Unused in v1.0.0 — kept in the schema so engine code that iterates A/B/C/D doesn't need conditional handling. Future LVFT taxonomy passes may use this slot for an OSP/aerial-lineman track or a wireless/DAS track if curriculum expands.",
+      "score": 0,
+      "phrases": []
+    },
+    "D": {
+      "description": "Unused in v1.0.0. Future LVFT passes may use this slot for a healthcare-IT-cabling track if Per Scholas signs healthcare partnerships that justify it.",
+      "score": 0,
+      "phrases": []
+    }
+  },
+
+  "title_exclusions": {
+    "description": "Hard reject if title contains any of these substrings.",
+    "seniority": [
+      "senior", " sr.", " sr ", "lead ", "principal", " staff ",
+      "manager", " mgr", "director", "supervisor", "architect",
+      "chief", "head of", "vice president",
+      " iii", " iv", " v ",
+      "level 3", "level 4", "level 5"
+    ],
+    "wrong_discipline": [
+      "network engineer",
+      "network architect",
+      "software engineer",
+      "developer",
+      "design engineer",
+      "electrical engineer",
+      "mechanical engineer",
+      "project engineer",
+      "data scientist",
+      "sales",
+      "account executive",
+      "marketing",
+      "recruiter",
+      "quality engineer",
+      "process engineer",
+      "manufacturing engineer",
+      "application engineer"
+    ],
+    "controls_programming": [
+      "controls engineer",
+      "plc programmer",
+      "plc engineer",
+      "automation engineer",
+      "scada engineer"
+    ]
+  },
+
+  "description_disqualifiers": {
+    "description": "Hard reject if description_text contains any of these phrases.",
+    "credentials": [
+      "p.e. license required",
+      "pe license required",
+      "professional engineer license required",
+      "bachelor's degree required",
+      "bs required",
+      "four-year degree required",
+      "master's degree required",
+      "ccnp required",
+      "ccie required",
+      "master electrician required",
+      "journeyman electrician license required"
+    ],
+    "experience": {
+      "description": "Regex-based experience filter (same shape as CFT). Reject when a captured year-count > max_years_allowed AND a 'required'-class word appears within ±50 chars of the match.",
+      "max_years_allowed": 3,
+      "patterns": [
+        "(\\d+)\\)?\\+?\\s*(?:to\\s*\\d+\\s*)?years?'?\\s+(?:of\\s+)?(?:experience|exp\\b)",
+        "(?:minimum|at least|requires?)\\s+(?:of\\s+)?(\\d+|three|four|five|six|seven|eight|nine|ten)\\+?\\s*years?",
+        "(\\d+)\\s*[-–—]\\s*\\d+\\s*years?'?\\s+(?:of\\s+)?(?:experience|exp\\b)",
+        "\\b(three|four|five|six|seven|eight|nine|ten)\\+?\\s*years?\\b",
+        "\\b(\\d+)\\+\\s*years?\\b"
+      ]
+    }
+  },
+
+  "core_skills": {
+    "description": "Curriculum-confirmed skills taught extensively in UCI 1019 (≥4 days each, or foundational across multiple modules). Each match = 8 pts, capped at 40. Cert-bearing skills (OSHA 10, NFPA 70E, CFOT) appear here AND in `certifications` — known double-count, intentional for v1.0 to give certs full weight; will be reconciled if it produces inflated scores in real fetches.",
+    "weight_per_match": 8,
+    "max_score": 40,
+    "skills": [
+      { "canonical": "Fiber Optic", "forms": ["fiber optic", "fiber-optic", "fibre optic"], "curriculum_module": "Fiber Optic Technology" },
+      { "canonical": "Single-Mode Fiber", "forms": ["single-mode", "single mode fiber", "smf", "os1", "os2"], "curriculum_module": "Fiber Optic Technology" },
+      { "canonical": "Multimode Fiber", "forms": ["multimode", "multi-mode", "mmf", "om1", "om2", "om3", "om4", "om5"], "curriculum_module": "Fiber Optic Technology" },
+      { "canonical": "Fusion Splicing", "forms": ["fusion splicing", "fusion splicer", "fusion splice"], "curriculum_module": "Fiber Optic Technology" },
+      { "canonical": "Mechanical Splicing", "forms": ["mechanical splicing", "mechanical splice"], "curriculum_module": "Fiber Optic Technology" },
+      { "canonical": "OTDR", "forms": ["otdr", "optical time domain reflectometer"], "curriculum_module": "Fiber Optic Technology" },
+      { "canonical": "Optical Power Meter", "forms": ["optical power meter", "opm", "light source", "fiber light source"], "curriculum_module": "Fiber Optic Technology" },
+      { "canonical": "Insertion Loss", "forms": ["insertion loss", "link loss", "attenuation testing"], "curriculum_module": "Fiber Optic Technology" },
+      { "canonical": "Fiber Termination", "forms": ["fiber termination", "fiber connector termination", "adhesive polish", "pre-polished splice"], "curriculum_module": "Fiber Optic Technology" },
+      { "canonical": "Connector Inspection", "forms": ["connector inspection", "endface inspection", "fiber microscope", "iec 61300"], "curriculum_module": "Fiber Optic Technology" },
+      { "canonical": "Cat5e/6/6A", "forms": ["cat5e", "cat6", "cat6a", "category 5e", "category 6", "category 6a"], "curriculum_module": "Structured Cabling" },
+      { "canonical": "TIA-568", "forms": ["tia-568", "tia 568", "568a", "568b"], "curriculum_module": "Structured Cabling" },
+      { "canonical": "Patch Panel", "forms": ["patch panel"], "curriculum_module": "Structured Cabling" },
+      { "canonical": "Punch-down", "forms": ["punch-down", "punch down", "krone"], "curriculum_module": "Structured Cabling" },
+      { "canonical": "Cable Certifier", "forms": ["cable certifier", "cable tester", "fluke certifier", "cable certification"], "curriculum_module": "Structured Cabling" },
+      { "canonical": "Crimping", "forms": ["crimping", "rj45", "rj-45"], "curriculum_module": "Structured Cabling" },
+      { "canonical": "Structured Cabling", "forms": ["structured cabling"], "curriculum_module": "Enterprise Infrastructure" },
+      { "canonical": "PoE", "forms": ["poe", "power over ethernet"], "curriculum_module": "Network Fundamentals" },
+      { "canonical": "VLAN", "forms": ["vlan", "virtual lan"], "curriculum_module": "Network Fundamentals" },
+      { "canonical": "OSHA 10", "forms": ["osha 10", "osha-10", "osha 10-hour"], "curriculum_module": "OSHA and NFPA Safety", "is_certification": true },
+      { "canonical": "NFPA 70E", "forms": ["nfpa 70e", "nfpa-70e", "nfpa70e"], "curriculum_module": "OSHA and NFPA Safety", "is_certification": true },
+      { "canonical": "CFOT", "forms": ["cfot", "certified fiber optic technician"], "curriculum_module": "Fiber Optic Technology", "is_certification": true },
+      { "canonical": "PPE", "forms": ["ppe", "personal protective equipment"], "curriculum_module": "OSHA and NFPA Safety" },
+      { "canonical": "LOTO", "forms": ["loto", "lockout tagout", "lockout/tagout", "lock out tag out"], "curriculum_module": "OSHA and NFPA Safety" }
+    ]
+  },
+
+  "specialized_skills": {
+    "description": "Hands-on lab skills with named systems and tools. Each match = 4 pts, capped at 20.",
+    "weight_per_match": 4,
+    "max_score": 20,
+    "skills": [
+      { "canonical": "EMT Conduit", "forms": ["emt conduit", "electrical metallic tubing", "conduit bending", "hand bender"], "curriculum_module": "Construction & Power Tools" },
+      { "canonical": "Cable Tray", "forms": ["cable tray"], "curriculum_module": "Enterprise Infrastructure" },
+      { "canonical": "J-Hook", "forms": ["j-hook", "j hook"], "curriculum_module": "Enterprise Infrastructure" },
+      { "canonical": "Coaxial", "forms": ["rg6", "rg59", "coaxial cable", "coax cable"], "curriculum_module": "Structured Cabling" },
+      { "canonical": "Bonding/Grounding", "forms": ["bonding", "grounding", "bonding infrastructure"], "curriculum_module": "Enterprise Infrastructure" },
+      { "canonical": "Firestop", "forms": ["firestop", "fire-stop", "fire-rated barrier"], "curriculum_module": "Enterprise Infrastructure" },
+      { "canonical": "MDF/IDF", "forms": ["mdf", "idf", "main distribution frame", "intermediate distribution frame"], "curriculum_module": "Enterprise Infrastructure" },
+      { "canonical": "Telecom Spaces", "forms": ["telecommunication room", "telecom room", "equipment room", "entrance facility"], "curriculum_module": "Enterprise Infrastructure" },
+      { "canonical": "Cable Pulling", "forms": ["cable pulling", "cable pull", "cable installation"], "curriculum_module": "Structured Cabling" },
+      { "canonical": "Managed Switch", "forms": ["managed switch", "switch configuration"], "curriculum_module": "Network Fundamentals" },
+      { "canonical": "OSI Model", "forms": ["osi model", "osi layer"], "curriculum_module": "Network Fundamentals" },
+      { "canonical": "IP Camera", "forms": ["ip camera", "ip-connected camera", "network camera", "ip surveillance"], "curriculum_module": "Low Voltage Systems" },
+      { "canonical": "CCTV", "forms": ["cctv", "video surveillance", "surveillance camera"], "curriculum_module": "Low Voltage Systems" },
+      { "canonical": "Access Control", "forms": ["access control", "badge reader", "card reader"], "curriculum_module": "Low Voltage Systems" },
+      { "canonical": "Punch-Down Block", "forms": ["punch-down block", "110 block", "66 block"], "curriculum_module": "Low Voltage Systems" },
+      { "canonical": "Drywall Rough-In", "forms": ["drywall rough-in", "drywall rough in", "low-voltage device mounting"], "curriculum_module": "Construction & Power Tools" }
+    ]
+  },
+
+  "bonus_skills": {
+    "description": "Supporting topics. Each match = 1 pt, capped at 5. Only counts if at least one core skill OR industry context also matched (prevents random-job false positives).",
+    "weight_per_match": 1,
+    "max_score": 5,
+    "requires_core_or_industry_match": true,
+    "skills": [
+      { "canonical": "Voltage Tester", "forms": ["voltage tester", "multimeter"] },
+      { "canonical": "Hand Tools", "forms": ["hand tools", "drills", "anchors"] },
+      { "canonical": "Safety Gear", "forms": ["hard hat", "steel-toed", "safety glasses"] },
+      { "canonical": "ServiceNow", "forms": ["servicenow"] },
+      { "canonical": "ITSM", "forms": ["itsm", "it service management"] },
+      { "canonical": "Ladder Safety", "forms": ["ladder safety", "fall protection"] }
+    ]
+  },
+
+  "industry_context": {
+    "description": "Fiber / cabling / low-voltage / telecom industry signals. Each match = 3 pts, capped at 10. Critically used as the gate for Tier A and Tier B `score_if_no_industry_context: 0` — every LVFT title match must produce at least one industry-context hit, else the title score collapses to 0.",
+    "weight_per_match": 3,
+    "max_score": 10,
+    "phrases": [
+      "fiber optic",
+      "fiber-optic",
+      "structured cabling",
+      "low voltage",
+      "low-voltage",
+      "telecommunications",
+      "telecom",
+      "broadband",
+      "outside plant",
+      "osp",
+      "ftth",
+      "fttx",
+      "fiber to the home",
+      "fiber to the desk",
+      "fiber to the premises",
+      "data center",
+      "datacenter",
+      "isp",
+      "internet service provider",
+      "carrier network",
+      "data infrastructure",
+      "premises wiring",
+      "communications infrastructure",
+      "splicing",
+      "patch cord",
+      "cabling system"
+    ]
+  },
+
+  "healthcare_context": {
+    "description": "Unused in v1.0.0 (no Tier D in LVFT). Kept in schema for engine compatibility.",
+    "phrases": []
+  },
+
+  "certifications": {
+    "description": "Curriculum-earned certifications + commonly-requested industry certs. Each match = 5 pts, capped at 15.",
+    "weight_per_match": 5,
+    "max_score": 15,
+    "certs": [
+      { "canonical": "OSHA 10", "forms": ["osha 10", "osha-10", "osha 10-hour"] },
+      { "canonical": "NFPA 70E", "forms": ["nfpa 70e", "nfpa-70e"] },
+      { "canonical": "CFOT", "forms": ["cfot", "certified fiber optic technician"] },
+      { "canonical": "BICSI", "forms": ["bicsi", "bicsi installer", "bicsi technician"] },
+      { "canonical": "FOA Specialty", "forms": ["cfos", "fiber optic specialist"] }
+    ]
+  },
+
+  "employer_watchlist": {
+    "description": "Known target employers across the LVFT placement landscape. Match = +5 pts. v1.0.0 categories cover ISPs/carriers, hyperscale/colo (fiber inside DCs), low-voltage contractors, and cabling specialists. No `is_healthcare` flag set on any v1.0 category — Tier D is unused in LVFT so the healthcare gate doesn't apply.",
+    "weight_per_match": 5,
+    "categories": {
+      "fiber_isp_carrier": {
+        "is_healthcare": false,
+        "employers": [
+          "at&t",
+          "verizon",
+          "t-mobile",
+          "comcast",
+          "charter",
+          "spectrum",
+          "cox communications",
+          "lumen",
+          "centurylink",
+          "frontier",
+          "brightspeed",
+          "windstream",
+          "optimum",
+          "altice",
+          "cablevision"
+        ]
+      },
+      "hyperscale_cloud": {
+        "is_healthcare": false,
+        "employers": ["microsoft", "google", "meta", "amazon", "aws", "apple", "oracle"]
+      },
+      "colocation_wholesale": {
+        "is_healthcare": false,
+        "employers": [
+          "switch",
+          "digital realty",
+          "qts",
+          "equinix",
+          "t5 data centers",
+          "databank",
+          "cyrusone",
+          "cologix",
+          "iron mountain",
+          "flexential",
+          "aligned data centers",
+          "stack infrastructure",
+          "edgeconnex",
+          "h5 data centers",
+          "compass datacenters"
+        ]
+      },
+      "low_voltage_contractors": {
+        "is_healthcare": false,
+        "employers": [
+          "black box",
+          "bell techlogix",
+          "iron bow",
+          "anixter",
+          "graybar",
+          "wesco",
+          "adi global",
+          "kratos",
+          "presidio"
+        ]
+      },
+      "cabling_specialists": {
+        "is_healthcare": false,
+        "employers": [
+          "ies communications",
+          "sentinel",
+          "comm-works",
+          "mortenson",
+          "tech electric",
+          "general communication",
+          "ronco",
+          "morrison hershfield",
+          "mitsubishi electric"
+        ]
+      }
+    }
+  },
+
+  "experience_filter": {
+    "description": "API-side filter + post-fetch tightening. Same as CFT — Per Scholas graduates target 0–2 / 2–5 brackets.",
+    "api_levels_allowed": ["0-2", "2-5"],
+    "auto_reject_levels": ["5-10", "10+"],
+    "post_fetch_penalty": {
+      "description": "If ai_experience_level is 2-5 BUT description requires >3 years, deduct 10 points.",
+      "patterns": ["more than [3-9] years", "[3-9]\\+ years", "minimum [3-9] years"],
+      "penalty": 10
+    }
+  },
+
+  "geography": {
+    "description": "Per-campus geofencing using haversine distance. v1.0.0: 100mi radius per Imran (matches CFT 100mi after the parallel CFT update). LVFT roles often involve travel for installs so a wider commute zone is realistic.",
+    "default_radius_miles": 100
+  },
+
+  "scoring": {
+    "thresholds": {
+      "high": 75,
+      "medium": 50,
+      "low": 30
+    },
+    "formula": [
+      "title_score (tier-based, 0-40; 0 if `score_if_no_industry_context` fires)",
+      "+ core_skills_score (count * 8, capped at 40)",
+      "+ specialized_skills_score (count * 4, capped at 20)",
+      "+ bonus_skills_score (count * 1, capped at 5; requires core_match >= 1 OR industry_match >= 1)",
+      "+ certs_score (count * 5, capped at 15)",
+      "+ industry_context_score (count * 3, capped at 10)",
+      "+ employer_watchlist_score (5 if matched, else 0)",
+      "- experience_penalty (10 if applicable)",
+      "= raw_score",
+      "",
+      "Hard rejects (return REJECT regardless of score):",
+      "- Any title_exclusion match",
+      "- Any description_disqualifier match",
+      "- Outside geographic radius",
+      "- ai_experience_level in auto_reject_levels"
+    ]
+  },
+
+  "tags": {
+    "FIBER_TRACK": {
+      "description": "Strong fiber-side signal regardless of title — heavy fusion-splicing / OTDR / single-mode / multimode content suggests the job is genuinely fiber-focused vs. a generic cabling role.",
+      "rules": {
+        "any_of_skills": ["Fiber Optic", "Single-Mode Fiber", "Multimode Fiber", "Fusion Splicing", "OTDR", "Optical Power Meter", "Fiber Termination", "Connector Inspection"],
+        "min_matches": 2
+      }
+    },
+    "COPPER_TRACK": {
+      "description": "Strong structured-cabling / copper signal — Cat5e/6, patch panels, TIA-568, punch-down content. Useful for distinguishing pure-copper installer roles from fiber-heavy ones.",
+      "rules": {
+        "any_of_skills": ["Cat5e/6/6A", "TIA-568", "Patch Panel", "Punch-down", "Cable Certifier", "Crimping"],
+        "min_matches": 2
+      }
+    },
+    "AV_SECURITY_TRACK": {
+      "description": "Strong AV / video surveillance / access control content — typically the placement track for graduates who lean into low-voltage building systems vs. carrier / DC fiber work.",
+      "rules": {
+        "any_of_skills": ["CCTV", "IP Camera", "Access Control"],
+        "min_matches": 2
+      }
+    }
+  }
+}
