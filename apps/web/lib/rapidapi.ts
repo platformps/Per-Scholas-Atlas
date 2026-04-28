@@ -66,13 +66,26 @@ const US_STATE_NAMES: Record<string, string> = {
  * matching against locations_derived; this format is the substring most
  * commonly present in real ATS-indexed location strings.
  *
- * The 100-mile haversine geofence in scoring picks up the precision; the
+ * The haversine geofence in scoring picks up the precision; the
  * server-side filter just needs decent recall in the right metro.
+ *
+ * `metro_label` override: a campus's office city is sometimes a poor
+ * proxy for the metro labor market (the Bronx campus is in "Bronx, NY"
+ * but most NYC fiber jobs are indexed as "New York, New York";
+ * Cambridge MA→Boston, Menlo Park CA→San Francisco, Silver Spring MD→
+ * Washington DC, etc.). When `metro_label` is set we use that instead
+ * of `city`. Falls back to `city` for normal campuses (Dallas, Houston,
+ * Atlanta, …) where the office city is the labor market.
  */
-export function buildLocationFilter(campus: { city: string; state: string }): string {
+export function buildLocationFilter(campus: {
+  city: string;
+  state: string;
+  metro_label?: string | null;
+}): string {
   const code = campus.state.toUpperCase();
   const fullState = US_STATE_NAMES[code] ?? campus.state;
-  return `${campus.city}, ${fullState}`;
+  const cityForFilter = campus.metro_label?.trim() || campus.city;
+  return `${cityForFilter}, ${fullState}`;
 }
 
 /**
