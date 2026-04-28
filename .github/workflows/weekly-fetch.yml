@@ -1,8 +1,15 @@
-name: Weekly Job Fetch
+name: Atlas Job Fetch
 
 # Per BRIEF §14: GitHub Actions is the cron — Vercel /api/fetch-jobs does the
 # fetch + score + DB writes. The single TS scoring engine in
 # packages/scoring is the only source of truth (no Python re-implementation).
+#
+# Cadence: Mon/Wed/Fri at 13:00 UTC (= 9am EDT / 8am EST depending on DST;
+# cron has no DST awareness). Each run hits the rolling 7-day window from
+# the active-ats-7d endpoint; alternating-day cadence balances recall against
+# noise (most postings stay live ≥48h, so we don't miss them). Quota burn
+# at one campus×role pair: ~80 jobs × 3 runs/week × ~4.3 weeks/mo ≈
+# 1,030/month, well under the 20,000 cap.
 #
 # Required secrets (Settings → Secrets and Variables → Actions):
 #   VERCEL_FETCH_URL   e.g. https://<your-app>.vercel.app/api/fetch-jobs
@@ -10,8 +17,9 @@ name: Weekly Job Fetch
 
 on:
   schedule:
-    # Mondays at 10:00 UTC ≈ 5/6am ET depending on DST.
-    - cron: '0 10 * * 1'
+    # 9am ET (during EDT) Mon, Wed, Fri = 13:00 UTC.
+    # Day-of-week field uses 0=Sunday, 1=Monday, ..., 5=Friday, 6=Saturday.
+    - cron: '0 13 * * 1,3,5'
   workflow_dispatch:
     inputs:
       campus_id:

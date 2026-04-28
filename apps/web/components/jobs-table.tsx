@@ -65,8 +65,8 @@ export function JobsTable({ scores }: JobsTableProps) {
           No results
         </div>
         <p className="text-sm text-gray-600 max-w-md mx-auto">
-          No scored jobs for this view yet. The next scheduled fetch runs daily at 6am ET, or an
-          admin can trigger a manual fetch from the Admin panel.
+          No scored jobs for this view yet. The next scheduled fetch runs Mon/Wed/Fri at 9am ET,
+          or an admin can trigger a manual fetch from the Admin panel.
         </p>
       </div>
     );

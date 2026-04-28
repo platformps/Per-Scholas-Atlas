@@ -116,7 +116,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                 {' · '}
                 {latestRun
                   ? `Last fetch ${new Date(latestRun.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${latestRun.jobs_returned} jobs`
-                  : 'No fetches yet — daily cron runs 6am ET'}
+                  : 'No fetches yet — cron runs Mon/Wed/Fri 9am ET'}
               </div>
             </div>
           </div>
@@ -161,7 +161,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           <div className="mb-2 font-semibold uppercase tracking-wider text-gray-700">Data source</div>
           <p>
             Scores computed against the active CFT taxonomy. Jobs sourced from the Fantastic Jobs
-            Active Jobs DB (rolling 7-day ATS window). Fetch cadence: daily at 10:00 UTC.
+            Active Jobs DB (rolling 7-day ATS window). Fetch cadence: Mon/Wed/Fri at 9am ET.
             Admins can trigger a manual fetch from the Admin panel.
           </p>
           <p className="mt-3 text-gray-400">
