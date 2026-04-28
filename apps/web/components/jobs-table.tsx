@@ -85,11 +85,11 @@ export function JobsTable({ scores }: JobsTableProps) {
 
   return (
     <Card>
-      <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <div className="border-b border-gray-200 bg-cloud px-6 py-4 flex items-center justify-between">
         <div className="text-sm font-semibold text-night">
-          Jobs <span className="text-gray-500 font-normal ml-1">· {scores.length} scored</span>
+          Jobs <span className="text-gray-600 font-normal ml-1">· {scores.length} scored</span>
         </div>
-        <div className="text-xs text-gray-400 hidden sm:block">
+        <div className="text-xs text-gray-500 hidden sm:block">
           Click a row to see the score breakdown.
         </div>
       </div>

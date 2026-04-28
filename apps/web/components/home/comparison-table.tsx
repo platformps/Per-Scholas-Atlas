@@ -69,14 +69,14 @@ export function ComparisonTable({
 }: ComparisonTableProps) {
   return (
     <Card>
-      <div className="border-b border-gray-200 px-6 py-4 flex items-baseline justify-between gap-3 flex-wrap">
+      <div className="border-b border-gray-200 bg-cloud px-6 py-4 flex items-baseline justify-between gap-3 flex-wrap">
         <div>
           <h3 className="text-sm font-semibold text-night">{title}</h3>
           {description && (
-            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{description}</p>
+            <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">{description}</p>
           )}
         </div>
-        <span className="text-xs text-gray-400 shrink-0">
+        <span className="text-xs text-gray-500 shrink-0">
           {rows.length} {rows.length === 1 ? 'row' : 'rows'}
         </span>
       </div>

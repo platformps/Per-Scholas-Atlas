@@ -301,7 +301,7 @@ export default async function AdminPage() {
         </div>
         <Card>
           <div className="overflow-x-auto">
-            <div className="grid grid-cols-[100px_90px_140px_120px_90px_70px_70px_70px_1fr] gap-3 px-6 py-2.5 border-b border-gray-200 bg-gray-50 text-[11px] font-semibold uppercase tracking-wider text-gray-500 min-w-[900px]">
+            <div className="grid grid-cols-[100px_90px_140px_120px_90px_70px_70px_70px_1fr] gap-3 px-6 py-2.5 border-b border-gray-200 bg-cloud text-[11px] font-semibold uppercase tracking-wider text-gray-700 min-w-[900px]">
               <div>Trigger</div>
               <div>Status</div>
               <div>Started</div>
