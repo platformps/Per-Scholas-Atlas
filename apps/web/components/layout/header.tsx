@@ -1,16 +1,22 @@
 // App header — Per Scholas logo + Atlas wordmark + page-specific subtitle
-// area + user/nav block on the right. Used across the dashboard, admin, and
-// any future authenticated pages. The subtitle slot is a render prop so each
-// page can put its own context (campus picker, "Admin · Operations", etc.).
+// area + user/nav block on the right. Used across the dashboard, admin, FAQ,
+// and any future authenticated pages.
 //
-// Layout: logo · divider · {Atlas + subtitle + meta line} · spacer · nav
+// Visual chrome: soft 1px shadow under the header so it elevates above the
+// content cards. Logo + Atlas wordmark are a single Link to "/" so clicking
+// either returns the user to the aggregate homepage.
 //
-// Visual chrome: the header carries a soft shadow (shadow-[0_1px_3px_rgba(...)])
-// so it sits visibly above the content cards instead of looking flush with the
-// page background. The logo + Atlas wordmark are wrapped in a Link to "/" so
-// clicking either takes the user back to the aggregate homepage — that's the
-// universal "home" affordance and removes the need for a separate Home button
-// in every nav.
+// Nav layout (right side): three groups separated by a thin vertical rule.
+//   [ Home · FAQ · Admin ]   |   [ user pill ]   |   [ sign-out icon ]
+//
+//   Group 1 (primary nav)  — page links rendered as pill buttons. The active
+//                            page gets a Royal-tinted fill so the user always
+//                            knows where they are.
+//   Group 2 (user pill)    — circular initial chip + email (md+ only). Reads
+//                            as "you are signed in as X".
+//   Group 3 (sign-out)     — small icon-only button with an aria-label. Less
+//                            visible than the page links so it doesn't compete,
+//                            but discoverable on hover.
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
@@ -58,80 +64,101 @@ export function Header({ subtitle, meta, nav }: HeaderProps) {
             </div>
           </Link>
         </div>
-        <nav className="flex items-center gap-3 sm:gap-5 text-sm shrink-0">
-          {nav}
-        </nav>
+        <nav className="flex items-center gap-2 sm:gap-3 shrink-0">{nav}</nav>
       </div>
     </header>
   );
 }
 
-// ─── Common nav links ──────────────────────────────────────────────────────
-//
-// "Home" appears whenever the user is on a non-aggregate view — i.e. has any
-// filter selected or is on /admin. The clickable wordmark covers the same
-// affordance, but a dedicated link in the nav makes it discoverable for users
-// who don't think to click the logo.
+// ─── Nav links ──────────────────────────────────────────────────────────────
+
+import { LogOut } from 'lucide-react';
+
+type ActivePage = 'home' | 'admin' | 'faq';
 
 interface NavLinksProps {
   email?: string;
   showAdminLink?: boolean;
-  showDashboardLink?: boolean;
-  /** When true, render an explicit "Home" link to /. Use this when the
-   *  current URL has filters set OR the user is on /admin or /faq. */
-  showHomeLink?: boolean;
-  /** When true, hide the FAQ link (use on /faq itself). Default: show. */
-  hideFaqLink?: boolean;
+  /** Which page is currently active — drives the highlighted pill. */
+  active?: ActivePage;
 }
 
-export function NavLinks({
-  email,
-  showAdminLink,
-  showDashboardLink,
-  showHomeLink,
-  hideFaqLink = false,
-}: NavLinksProps) {
+export function NavLinks({ email, showAdminLink, active }: NavLinksProps) {
   return (
     <>
-      {showHomeLink && (
-        <Link
-          href="/"
-          className="text-royal hover:text-navy font-semibold uppercase tracking-wider text-xs transition-colors duration-150"
-        >
-          Home
-        </Link>
+      <div className="flex items-center gap-1">
+        <NavPill href="/" label="Home" isActive={active === 'home'} />
+        <NavPill href="/faq" label="FAQ" isActive={active === 'faq'} />
+        {showAdminLink && (
+          <NavPill href="/admin" label="Admin" isActive={active === 'admin'} />
+        )}
+      </div>
+
+      {email && (
+        <>
+          <span
+            className="hidden md:inline-block h-6 w-px bg-gray-200 mx-1"
+            aria-hidden
+          />
+          <UserPill email={email} />
+        </>
       )}
-      {showDashboardLink && (
-        <Link
-          href="/"
-          className="text-royal hover:text-navy font-semibold uppercase tracking-wider text-xs transition-colors duration-150"
-        >
-          Dashboard
-        </Link>
-      )}
-      {!hideFaqLink && (
-        <Link
-          href="/faq"
-          className="text-gray-600 hover:text-night font-semibold uppercase tracking-wider text-xs transition-colors duration-150"
-        >
-          FAQ
-        </Link>
-      )}
-      {showAdminLink && (
-        <Link
-          href="/admin"
-          className="text-royal hover:text-navy font-semibold uppercase tracking-wider text-xs transition-colors duration-150"
-        >
-          Admin
-        </Link>
-      )}
-      {email && <span className="hidden md:inline text-gray-600">{email}</span>}
+
       <a
         href="/auth/signout"
-        className="text-gray-500 hover:text-gray-800 uppercase tracking-wider text-xs transition-colors duration-150"
+        aria-label="Sign out"
+        title="Sign out"
+        className="inline-flex items-center justify-center h-9 w-9 rounded-sm text-gray-500 hover:text-night hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-royal/30 transition-colors duration-150"
       >
-        Sign out
+        <LogOut className="h-4 w-4" aria-hidden />
       </a>
     </>
+  );
+}
+
+// ─── A single nav pill (primary link button) ────────────────────────────────
+function NavPill({
+  href,
+  label,
+  isActive,
+}: {
+  href: string;
+  label: string;
+  isActive: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={isActive ? 'page' : undefined}
+      className={[
+        'inline-flex items-center px-3 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-sm transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-royal/30',
+        isActive
+          ? 'bg-royal/10 text-royal'
+          : 'text-gray-600 hover:text-night hover:bg-gray-100',
+      ].join(' ')}
+    >
+      {label}
+    </Link>
+  );
+}
+
+// ─── User pill — initial chip + email (md+) ─────────────────────────────────
+function UserPill({ email }: { email: string }) {
+  const initial = email.trim().charAt(0).toUpperCase() || '?';
+  return (
+    <div
+      className="inline-flex items-center gap-2 rounded-sm py-1 pl-1 md:pr-3 bg-transparent"
+      title={email}
+    >
+      <span
+        aria-hidden
+        className="inline-flex items-center justify-center h-7 w-7 rounded-sm bg-royal/10 text-royal text-xs font-semibold"
+      >
+        {initial}
+      </span>
+      <span className="hidden md:inline text-sm text-gray-700 truncate max-w-[180px]">
+        {email}
+      </span>
+    </div>
   );
 }

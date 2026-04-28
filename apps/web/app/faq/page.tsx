@@ -60,8 +60,7 @@ export default async function FAQPage() {
           nav={
             <NavLinks
               email={user.email}
-              showHomeLink
-              hideFaqLink
+              active="faq"
               showAdminLink={user.role === 'admin'}
             />
           }

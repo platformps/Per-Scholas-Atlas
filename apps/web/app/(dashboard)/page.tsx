@@ -128,7 +128,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             nav={
               <NavLinks
                 email={user.email}
-                showHomeLink
+                active="home"
                 showAdminLink={user.role === 'admin'}
               />
             }
@@ -250,7 +250,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             nav={
               <NavLinks
                 email={user.email}
-                showHomeLink
+                active="home"
                 showAdminLink={user.role === 'admin'}
               />
             }
@@ -337,7 +337,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             nav={
               <NavLinks
                 email={user.email}
-                showHomeLink
+                active="home"
                 showAdminLink={user.role === 'admin'}
               />
             }
@@ -398,7 +398,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           meta={`${WINDOW_DAYS}-day rolling view${
             lastUpdatedISO ? ` · last fetch ${formatRelative(lastUpdatedISO)}` : ''
           }`}
-          nav={<NavLinks email={user.email} showAdminLink={user.role === 'admin'} />}
+          nav={
+            <NavLinks
+              email={user.email}
+              active="home"
+              showAdminLink={user.role === 'admin'}
+            />
+          }
         />
       }
       footer={
