@@ -186,7 +186,7 @@ export default async function AdminPage() {
       header={
         <Header
           subtitle={<span className="text-sm text-gray-500">Admin · Operations</span>}
-          meta="Manual fetches, recent runs, RapidAPI quota, audit log."
+          meta="Manual fetches, recent runs, Job API quota, audit log."
           nav={<NavLinks email={user.email} showHomeLink />}
         />
       }
@@ -197,7 +197,7 @@ export default async function AdminPage() {
           <div>
             <SectionHeader label="Manual fetch" />
             <p className="text-sm text-gray-600 mt-1 mb-4 max-w-xl">
-              Triggers an immediate RapidAPI fetch and scoring run. Per-campus throttled at 1 per
+              Triggers an immediate Job API fetch and scoring run. Per-campus throttled at 1 per
               24 hours. Refused if quota is below {Math.round(QUOTA_BLOCK_RATIO * 100)}%. The
               "Fetch all" button on each role triggers all of its active campuses in one call.
             </p>
@@ -211,7 +211,7 @@ export default async function AdminPage() {
 
         <Card>
           <div className="p-6">
-            <SectionHeader label="RapidAPI quota" />
+            <SectionHeader label="Job API quota" />
             {jobsRemaining == null ? (
               <div className="text-sm text-gray-500">
                 No quota snapshot yet — runs once after the first fetch.

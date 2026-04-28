@@ -439,25 +439,26 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       {/* 2. Two clear next-step paths */}
       <DecisionPaths campuses={filterCampuses} roles={filterRoles} />
 
-      {/* 3. Leaderboards — top campuses + top roles */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <ComparisonTable
-          title="Top campuses by opportunity volume"
-          description="Click any campus to anchor the view on that local labor market."
-          rowLabel="Campus"
-          rows={campusRows}
-          ranked
-          emptyMessage="No campus data in this window yet."
-        />
-        <ComparisonTable
-          title="Top roles by opportunity volume"
-          description="Click any role to compare campus performance for that role."
-          rowLabel="Role"
-          rows={roleRows}
-          ranked
-          emptyMessage="No role data in this window yet."
-        />
-      </div>
+      {/* 3. Leaderboards — stacked vertically so columns stay legible at any
+          viewport width (no horizontal scrolling on tablets / sub-1280px).
+          Roles render first because Managing Directors usually anchor on a
+          role before a campus. */}
+      <ComparisonTable
+        title="Top roles by opportunity volume"
+        description="Click any role to compare campus performance for that role."
+        rowLabel="Role"
+        rows={roleRows}
+        ranked
+        emptyMessage="No role data in this window yet."
+      />
+      <ComparisonTable
+        title="Top campuses by opportunity volume"
+        description="Click any campus to anchor the view on that local labor market."
+        rowLabel="Campus"
+        rows={campusRows}
+        ranked
+        emptyMessage="No campus data in this window yet."
+      />
     </AppShell>
   );
 }

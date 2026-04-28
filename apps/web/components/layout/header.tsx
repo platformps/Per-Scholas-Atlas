@@ -78,8 +78,10 @@ interface NavLinksProps {
   showAdminLink?: boolean;
   showDashboardLink?: boolean;
   /** When true, render an explicit "Home" link to /. Use this when the
-   *  current URL has filters set OR the user is on /admin. */
+   *  current URL has filters set OR the user is on /admin or /faq. */
   showHomeLink?: boolean;
+  /** When true, hide the FAQ link (use on /faq itself). Default: show. */
+  hideFaqLink?: boolean;
 }
 
 export function NavLinks({
@@ -87,6 +89,7 @@ export function NavLinks({
   showAdminLink,
   showDashboardLink,
   showHomeLink,
+  hideFaqLink = false,
 }: NavLinksProps) {
   return (
     <>
@@ -104,6 +107,14 @@ export function NavLinks({
           className="text-royal hover:text-navy font-semibold uppercase tracking-wider text-xs transition-colors duration-150"
         >
           Dashboard
+        </Link>
+      )}
+      {!hideFaqLink && (
+        <Link
+          href="/faq"
+          className="text-gray-600 hover:text-night font-semibold uppercase tracking-wider text-xs transition-colors duration-150"
+        >
+          FAQ
         </Link>
       )}
       {showAdminLink && (
