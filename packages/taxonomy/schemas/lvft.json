@@ -2,8 +2,8 @@
   "$schema": "../src/schema.json",
   "role_id": "lvft",
   "role_name": "Low-Voltage Fiber Technician",
-  "version": "1.0.0",
-  "version_notes": "v1.0.0 (2026-04-28): initial taxonomy derived from UCI 1019 (12 weeks, 330 instructional hours). Per Scholas-Imran scoping: title tiers folded from 4 to 2 (Tier C/D dropped); AV/Security Installer titles live in Tier B; 'IT Infrastructure Technician' placed in Tier B (curriculum-listed but generic enough to risk pulling IT-side roles; the industry-context gate handles the false positives); 'Network Engineer' / 'Network Architect' excluded as IT-engineer-level; 'Network Technician' allowed (Tier B). Score-if-no-industry-context applied to BOTH Tier A and Tier B — every LVFT match requires at least one fiber / cabling / low-voltage / telecom signal phrase in the description, else the title score collapses to 0 (e.g., a generic 'field technician' role at a non-telecom employer with no cabling vocabulary lands at 0+skills, well into ADJACENT). Geography: 100mi default radius per Imran (matches CFT after this release). Pilot: active at all 25 Per Scholas campuses from day one (no per-campus rollout phase like CFT had).",
+  "version": "1.0.1",
+  "version_notes": "v1.0.1 (2026-04-28, post-first-fetch precision pass): expanded employer_watchlist with 9 employers observed in the v1.0.0 first-fetch HIGH set that weren't on the seed list. Categories updated: fiber_isp_carrier += hotwire communications, ezee fiber (+2); low_voltage_contractors += teksystems, essintial, decisionpoint, mastec (+4); cabling_specialists += afl global, afl telecommunications, ascension property services (+3). Watchlist now totals 64 employers across 5 categories (was 55). Spot-checked 15 v1.0.0 HIGH jobs and ZERO false positives — taxonomy gates are well-calibrated; this pass is purely about giving the watchlist boost to the contractors actually doing the placements. v1.0.0 (2026-04-28): initial taxonomy derived from UCI 1019 (12 weeks, 330 instructional hours). Per Scholas-Imran scoping: title tiers folded from 4 to 2 (Tier C/D dropped); AV/Security Installer titles live in Tier B; 'IT Infrastructure Technician' placed in Tier B (curriculum-listed but generic enough to risk pulling IT-side roles; the industry-context gate handles the false positives); 'Network Engineer' / 'Network Architect' excluded as IT-engineer-level; 'Network Technician' allowed (Tier B). Score-if-no-industry-context applied to BOTH Tier A and Tier B — every LVFT match requires at least one fiber / cabling / low-voltage / telecom signal phrase in the description, else the title score collapses to 0 (e.g., a generic 'field technician' role at a non-telecom employer with no cabling vocabulary lands at 0+skills, well into ADJACENT). Geography: 100mi default radius per Imran (matches CFT after this release). Pilot: active at all 25 Per Scholas campuses from day one (no per-campus rollout phase like CFT had).",
   "curriculum_source": {
     "course_code": "UCI 1019",
     "course_title": "Low-Voltage Fiber Technician",
@@ -304,7 +304,9 @@
           "windstream",
           "optimum",
           "altice",
-          "cablevision"
+          "cablevision",
+          "hotwire communications",
+          "ezee fiber"
         ]
       },
       "hyperscale_cloud": {
@@ -342,7 +344,11 @@
           "wesco",
           "adi global",
           "kratos",
-          "presidio"
+          "presidio",
+          "teksystems",
+          "essintial",
+          "decisionpoint",
+          "mastec"
         ]
       },
       "cabling_specialists": {
@@ -356,7 +362,10 @@
           "general communication",
           "ronco",
           "morrison hershfield",
-          "mitsubishi electric"
+          "mitsubishi electric",
+          "afl global",
+          "afl telecommunications",
+          "ascension property services"
         ]
       }
     }
