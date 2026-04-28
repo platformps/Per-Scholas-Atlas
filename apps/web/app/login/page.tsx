@@ -27,9 +27,13 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           <div className="text-center mb-10">
             <div className="inline-flex flex-col items-center">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-royal mb-3">
-                Per Scholas
-              </div>
+              {/* Per Scholas 30th Anniversary horizontal logo */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/per-scholas-logo.png"
+                alt="Per Scholas"
+                className="h-12 w-auto mb-5"
+              />
               <h1 className="text-5xl font-bold tracking-tight text-night">
                 Atlas
               </h1>

@@ -92,25 +92,32 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
       <header className="border-b border-gray-200 bg-white">
         <div className="max-w-[1600px] mx-auto px-6 py-5 flex items-center justify-between gap-6">
-          <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-royal mb-1">
-              Per Scholas
-            </div>
-            <div className="flex items-baseline gap-3 flex-wrap">
-              <h1 className="text-2xl font-bold tracking-tight text-night">Atlas</h1>
-              <span className="text-sm text-gray-500">
-                {activeRole?.name ?? 'Role'} · {activeCampus?.name ?? 'Campus'}
-              </span>
-            </div>
-            <div className="text-xs text-gray-500 mt-1.5">
-              {activeCampus?.address ?? ''}
-              {activeCampus?.default_radius_miles
-                ? ` · ${activeCampus.default_radius_miles}mi radius`
-                : ''}
-              {' · '}
-              {latestRun
-                ? `Last fetch ${new Date(latestRun.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${latestRun.jobs_returned} jobs`
-                : 'No fetches yet — daily cron runs 6am ET'}
+          <div className="flex items-center gap-5 min-w-0">
+            {/* Per Scholas 30th Anniversary horizontal logo */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/per-scholas-logo.png"
+              alt="Per Scholas"
+              className="h-10 w-auto shrink-0"
+            />
+            <div className="h-10 w-px bg-gray-200 shrink-0" aria-hidden />
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <h1 className="text-2xl font-bold tracking-tight text-night leading-none">Atlas</h1>
+                <span className="text-sm text-gray-500">
+                  {activeRole?.name ?? 'Role'} · {activeCampus?.name ?? 'Campus'}
+                </span>
+              </div>
+              <div className="text-xs text-gray-500 mt-1.5">
+                {activeCampus?.address ?? ''}
+                {activeCampus?.default_radius_miles
+                  ? ` · ${activeCampus.default_radius_miles}mi radius`
+                  : ''}
+                {' · '}
+                {latestRun
+                  ? `Last fetch ${new Date(latestRun.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${latestRun.jobs_returned} jobs`
+                  : 'No fetches yet — daily cron runs 6am ET'}
+              </div>
             </div>
           </div>
           <nav className="flex items-center gap-5 text-sm shrink-0">
