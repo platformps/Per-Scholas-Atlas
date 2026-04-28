@@ -44,6 +44,7 @@ import {
   computeOverview,
   buildCampusLeaderboard,
   buildRoleLeaderboard,
+  dedupByJobCampus,
   type ScoreWithContext,
 } from '@/lib/home-aggregations';
 
@@ -195,16 +196,25 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     jobs: { title: string | null; organization: string | null; still_active: boolean | null } | { title: string | null; organization: string | null; still_active: boolean | null }[] | null;
   };
 
-  // Dedup keyed by (job_id, campus_id) — latest scored_at wins. We already
-  // ordered desc, so the first hit per key is the latest.
+  // Dedup keyed by (job_id, campus_id, role_id) — latest scored_at wins.
+  // We already ordered desc, so the first hit per key is the latest.
+  //
+  // Including role_id in the key matters once more than one role is active
+  // on the platform: a job that's been scored under both CFT and LVFT
+  // taxonomies for the same campus has two valid latest-scores (one per
+  // role's perspective). Without role_id in the key, the most recently
+  // rescored taxonomy collapses the other one out — e.g. after a fresh
+  // LVFT rescore, almost every job's CFT score disappeared from the
+  // homepage's "latest" set, dropping the role count from 2 → 1.
   const seen = new Set<string>();
   const rows: ScoreWithContext[] = [];
   for (const r of (rawScores ?? []) as RawScore[]) {
-    const key = `${r.job_id}|${r.campus_id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
     const tax = Array.isArray(r.taxonomies) ? r.taxonomies[0] : r.taxonomies;
     const jb = Array.isArray(r.jobs) ? r.jobs[0] : r.jobs;
+    const roleId = tax?.role_id ?? '__no_role__';
+    const key = `${r.job_id}|${r.campus_id}|${roleId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     rows.push({
       job_id: r.job_id,
       campus_id: r.campus_id,
@@ -382,8 +392,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   // ─── AGGREGATE mode (the default landing) ───────────────────────────────
   const overview = computeOverview(rows);
+  // Top campuses leaderboard counts unique postings per campus (collapses
+  // the per-role duplicates) — same semantic as the overview tile. Top
+  // roles uses the un-collapsed set so both roles' counts are visible.
+  const aggregateCampusRows = dedupByJobCampus(rows);
   const campusRows = buildCampusLeaderboard(
-    rows,
+    aggregateCampusRows,
     filterCampuses.map(c => ({ id: c.id, name: c.name, state: c.state })),
     null,
     cid => `/?campus=${encodeURIComponent(cid)}`,

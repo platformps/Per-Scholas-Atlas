@@ -48,26 +48,78 @@ export interface OverviewTotals {
   employerCount: number;
 }
 
+/**
+ * Compute the overview-strip metrics. The input `rows` is the per-(job,
+ * campus, role) deduped set, so a single posting that matched two roles
+ * appears as two rows.
+ *
+ * For tile-level "unique postings" semantics we collapse those duplicates
+ * by (job_id, campus_id) — a posting is a posting, regardless of how
+ * many role taxonomies happened to score it. A posting counts as
+ * "qualifying" if ANY active role marked it HIGH/MEDIUM/LOW.
+ *
+ * `roleCount` and `campusCount` come from the un-collapsed set so they
+ * reflect "how many roles / campuses have any data," which is the right
+ * "X of Y active" semantic for those tiles.
+ */
 export function computeOverview(rows: ScoreWithContext[]): OverviewTotals {
   const campusSet = new Set<string>();
   const roleSet = new Set<string>();
   const employerSet = new Set<string>();
-  let qualifying = 0;
+  const allPairs = new Set<string>();
+  const qualifyingPairs = new Set<string>();
   for (const r of rows) {
     campusSet.add(r.campus_id);
     if (r.role_id) roleSet.add(r.role_id);
-    if (r.organization && r.confidence !== 'REJECT') {
-      employerSet.add(r.organization);
+    const pairKey = `${r.job_id}|${r.campus_id}`;
+    allPairs.add(pairKey);
+    if (r.confidence !== 'REJECT') {
+      qualifyingPairs.add(pairKey);
+      if (r.organization) employerSet.add(r.organization);
     }
-    if (r.confidence !== 'REJECT') qualifying += 1;
   }
   return {
-    totalRecords: rows.length,
-    qualifyingRecords: qualifying,
+    totalRecords: allPairs.size,
+    qualifyingRecords: qualifyingPairs.size,
     campusCount: campusSet.size,
     roleCount: roleSet.size,
     employerCount: employerSet.size,
   };
+}
+
+// ─── role-agnostic collapse for "unique postings" semantics ───────────────
+//
+// At the AGGREGATE landing the user thinks in terms of unique postings —
+// "Atlanta has 50 unique postings near the campus." A posting that scored
+// under both CFT and LVFT is still one posting. We use this collapse for
+// the campus leaderboard at the aggregate level. For role-filtered views
+// the rows are already scoped to a single role so this isn't needed; the
+// role leaderboard wants the un-collapsed count (each role's perspective
+// counted independently).
+//
+// Tie-break: keep the highest-confidence row so the buckets reflect the
+// "best" read across the active roles. A posting that's HIGH for LVFT
+// and REJECT for CFT counts as a HIGH posting on the leaderboard.
+const CONFIDENCE_RANK: Record<ScoreWithContext['confidence'], number> = {
+  HIGH: 4,
+  MEDIUM: 3,
+  LOW: 2,
+  REJECT: 1,
+};
+
+export function dedupByJobCampus(rows: ScoreWithContext[]): ScoreWithContext[] {
+  const byKey = new Map<string, ScoreWithContext>();
+  for (const r of rows) {
+    const key = `${r.job_id}|${r.campus_id}`;
+    const existing = byKey.get(key);
+    if (
+      !existing ||
+      CONFIDENCE_RANK[r.confidence] > CONFIDENCE_RANK[existing.confidence]
+    ) {
+      byKey.set(key, r);
+    }
+  }
+  return Array.from(byKey.values());
 }
 
 // ─── group rows by an arbitrary key ─────────────────────────────────────────
