@@ -1,0 +1,229 @@
+// Generic comparison table — used for three flavors:
+//
+//   1. Aggregate "Top campuses" leaderboard       (rows are campuses)
+//   2. Aggregate "Top roles" leaderboard          (rows are roles)
+//   3. Role-first compare campuses for one role   (rows are campuses, scoped)
+//   4. Campus-first compare roles for one campus  (rows are roles, scoped)
+//
+// Each row carries: name + (optional) subtitle, total job records, qualifying
+// share (HIGH+MEDIUM+LOW), unique employers, top job titles (truncated), and
+// a market-signal mini-bar. Clicking a row navigates with the appropriate
+// URL params layered on the existing ones — that powers the drill-down
+// flow ("see Atlanta for CFT", "see Cybersecurity for Newark", etc.).
+//
+// The market signal is the qualifying share rendered as a 0-100 bar with
+// a 5-step label (Strong/Healthy/Mixed/Light/Sparse). It's a heuristic, not
+// a model — but it gives the MD an at-a-glance read without forcing them
+// to do mental percentage math.
+
+import Link from 'next/link';
+import { Card } from '../ui/card';
+import { Badge } from '../ui/badge';
+import { EmptyState } from '../ui/empty-state';
+
+export interface ComparisonRow {
+  /** Stable id for the row (campus_id or role_id). */
+  id: string;
+  /** Display name (e.g. "Atlanta" or "Critical Facilities Technician"). */
+  name: string;
+  /** Optional secondary line (e.g. campus state, role short code). */
+  subtitle?: string;
+  /** Total scored records in window. */
+  total: number;
+  /** Records whose confidence is HIGH/MEDIUM/LOW (i.e. not REJECT). */
+  qualifying: number;
+  /** Distinct employer organizations across qualifying jobs. */
+  employers: number;
+  /** Top job titles, already deduped by canonical title. */
+  topTitles: string[];
+  /** Confidence buckets (used for an inline distribution mini-bar). */
+  buckets: { HIGH: number; MEDIUM: number; LOW: number; REJECT: number };
+  /** Optional drill-down URL. Renders the row as a Link if present. */
+  href?: string;
+  /** Mark this row as the user's "home" / focused row (gets a star). */
+  highlight?: boolean;
+}
+
+interface ComparisonTableProps {
+  /** Section title (e.g. "Campus performance · Cybersecurity"). */
+  title: string;
+  /** Optional helper line under the title. */
+  description?: string;
+  /** Column header for the row name (e.g. "Campus" or "Role"). */
+  rowLabel: string;
+  /** All rows; pre-sorted by the parent so we don't re-sort. */
+  rows: ComparisonRow[];
+  /** Empty-state message when rows.length === 0. */
+  emptyMessage?: string;
+  /** Show numeric rank on the left (1, 2, 3…). Useful for leaderboards. */
+  ranked?: boolean;
+}
+
+export function ComparisonTable({
+  title,
+  description,
+  rowLabel,
+  rows,
+  emptyMessage = 'No data in this window yet.',
+  ranked = false,
+}: ComparisonTableProps) {
+  return (
+    <Card>
+      <div className="border-b border-gray-200 px-6 py-4 flex items-baseline justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className="text-sm font-semibold text-night">{title}</h3>
+          {description && (
+            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{description}</p>
+          )}
+        </div>
+        <span className="text-xs text-gray-400 shrink-0">
+          {rows.length} {rows.length === 1 ? 'row' : 'rows'}
+        </span>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="p-8">
+          <EmptyState message={emptyMessage} />
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] border-collapse">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                {ranked && <th className="px-6 py-2.5 text-left w-[44px]">#</th>}
+                <th className="px-3 py-2.5 text-left">{rowLabel}</th>
+                <th className="px-3 py-2.5 text-right w-[80px]">Records</th>
+                <th className="px-3 py-2.5 text-right w-[80px]">Qualif.</th>
+                <th className="px-3 py-2.5 text-right w-[80px]">Employers</th>
+                <th className="px-3 py-2.5 text-left min-w-[200px]">Top titles</th>
+                <th className="px-6 py-2.5 text-left w-[160px]">Market signal</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rows.map((r, idx) => (
+                <ComparisonRowEl
+                  key={r.id}
+                  row={r}
+                  rank={ranked ? idx + 1 : null}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+function ComparisonRowEl({ row, rank }: { row: ComparisonRow; rank: number | null }) {
+  const interactive = !!row.href;
+  const Wrapper = interactive
+    ? ({ children }: { children: React.ReactNode }) => (
+        <Link href={row.href!} className="contents">
+          {children}
+        </Link>
+      )
+    : ({ children }: { children: React.ReactNode }) => <>{children}</>;
+
+  return (
+    <tr
+      className={[
+        'transition-colors duration-150',
+        interactive ? 'hover:bg-gray-50 cursor-pointer' : '',
+        row.highlight ? 'bg-royal/[0.04]' : '',
+      ].join(' ')}
+    >
+      <Wrapper>
+        {rank !== null && (
+          <td className="px-6 py-3 align-top text-xs font-semibold text-gray-400 tabular-nums">
+            {rank}
+          </td>
+        )}
+        <td className="px-3 py-3 align-top">
+          <div className="flex items-center gap-2 min-w-0">
+            {row.highlight && (
+              <span className="text-royal text-sm leading-none" title="Your campus">
+                ★
+              </span>
+            )}
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-night truncate">{row.name}</div>
+              {row.subtitle && (
+                <div className="text-xs text-gray-500 truncate">{row.subtitle}</div>
+              )}
+            </div>
+          </div>
+        </td>
+        <td className="px-3 py-3 align-top text-sm text-night text-right tabular-nums">
+          {row.total.toLocaleString()}
+        </td>
+        <td className="px-3 py-3 align-top text-sm text-right tabular-nums">
+          <span className="text-royal font-medium">{row.qualifying.toLocaleString()}</span>
+          <span className="text-gray-400 ml-1">
+            · {row.total ? Math.round((row.qualifying / row.total) * 100) : 0}%
+          </span>
+        </td>
+        <td className="px-3 py-3 align-top text-sm text-gray-700 text-right tabular-nums">
+          {row.employers.toLocaleString()}
+        </td>
+        <td className="px-3 py-3 align-top text-xs text-gray-700">
+          {row.topTitles.length === 0 ? (
+            <span className="text-gray-400">—</span>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {row.topTitles.slice(0, 3).map(t => (
+                <Badge key={t} tone="gray" variant="soft" size="sm">
+                  {t}
+                </Badge>
+              ))}
+              {row.topTitles.length > 3 && (
+                <span className="text-[11px] text-gray-400 self-center">
+                  +{row.topTitles.length - 3}
+                </span>
+              )}
+            </div>
+          )}
+        </td>
+        <td className="px-6 py-3 align-top">
+          <MarketSignal buckets={row.buckets} total={row.total} />
+        </td>
+      </Wrapper>
+    </tr>
+  );
+}
+
+// ─── market-signal mini-bar ────────────────────────────────────────────────
+function MarketSignal({
+  buckets,
+  total,
+}: {
+  buckets: ComparisonRow['buckets'];
+  total: number;
+}) {
+  if (total === 0) return <span className="text-xs text-gray-400">No data</span>;
+  const qualifying = buckets.HIGH + buckets.MEDIUM + buckets.LOW;
+  const pct = (qualifying / total) * 100;
+  const label =
+    pct >= 70 ? 'Strong' :
+    pct >= 50 ? 'Healthy' :
+    pct >= 30 ? 'Mixed' :
+    pct >= 15 ? 'Light' :
+                'Sparse';
+  return (
+    <div className="flex flex-col gap-1.5 min-w-[120px]">
+      <div className="flex h-1.5 rounded-sm overflow-hidden bg-gray-100" title={`${qualifying} of ${total} qualifying`}>
+        {buckets.HIGH > 0 && (
+          <div className="bg-royal" style={{ width: `${(buckets.HIGH / total) * 100}%` }} />
+        )}
+        {buckets.MEDIUM > 0 && (
+          <div className="bg-ocean" style={{ width: `${(buckets.MEDIUM / total) * 100}%` }} />
+        )}
+        {buckets.LOW > 0 && (
+          <div className="bg-yellow" style={{ width: `${(buckets.LOW / total) * 100}%` }} />
+        )}
+      </div>
+      <div className="text-[11px] text-gray-500 leading-tight">{label}</div>
+    </div>
+  );
+}

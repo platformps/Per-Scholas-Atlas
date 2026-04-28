@@ -1,279 +1,455 @@
-// Atlas dashboard — Per Scholas brand redesign with 30-day cumulative view.
+// Atlas homepage — four-mode landing experience built for Managing Directors.
 //
-// Layout (top to bottom):
-//   1. Header (Atlas wordmark + Per Scholas logo + role/campus/last-fetch)
-//   2. Pipeline overview — 30-day cumulative stat cards (the new headline)
-//   3. Detection trend — fetch-by-fetch confidence breakdown (full width)
-//   4. Two-col: Why-jobs-were-filtered | Confidence distribution (30d)
-//   5. Two-col: Top Skills (30d) | Top Employers (30d)
-//   6. Jobs table — 30d deduped, sorted by score desc
-//   7. Footer
+// Mode dispatch is driven by URL search params:
 //
-// Why 30-day cumulative as headline: the latest fetch is sparse (Atlanta CFT
-// in any 7-day window has 1–3 entry-level fits). Showing cumulative pipeline
-// over 30 days is the correct narrative for stakeholders — "X jobs scanned,
-// Y still active, Z passed the qualifying gate" — instead of the misleading
-// "0 HIGH, 0 MEDIUM" you'd see on a sparse day.
+//   /                          → Aggregate landing
+//                                "What does the overall opportunity landscape
+//                                look like across all campuses and roles?"
+//
+//   /?role=cft                 → Role-first compare
+//                                "For this role, which campuses have the
+//                                strongest opportunity signal?"
+//
+//   /?campus=atlanta           → Campus-first compare
+//                                "What roles are strongest in my campus
+//                                market?"
+//
+//   /?campus=atlanta&role=cft  → Focused detail (the original dashboard view)
+//                                "What specific intelligence do I need to act
+//                                on for this campus × role combination?"
+//
+// Implementation notes:
+//   • A single Supabase query pulls all in-window scores joined with
+//     job + role metadata. Slicing happens in JS via `lib/home-aggregations`.
+//   • The focused mode does a second, richer query so the score-breakdown
+//     panel keeps the full chip blocks. Cleaner than reshaping shared rows.
+//   • Volume sanity check: ~18 active pairs × ~30 days × ~50 jobs ≈ 27k rows
+//     over the window. Per-row payload is small (~10 fields). Acceptable for
+//     a server component.
 
 import { requireUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase-server';
-import { JobsTable } from '@/components/jobs-table';
-import { PipelineStats } from '@/components/pipeline-stats';
-import { FetchTrend, type TrendPoint } from '@/components/fetch-trend';
-import { RejectionBreakdown, type RawReason } from '@/components/rejection-breakdown';
-import {
-  TopSkillsPanel,
-  TopEmployersPanel,
-  ConfidenceDistributionPanel,
-} from '@/components/insights-panels';
-import { CampusRolePicker, type PairOption } from '@/components/campus-role-picker';
 import { AppShell } from '@/components/layout/app-shell';
 import { Header, NavLinks } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 
-const WINDOW_DAYS = 30;
+import { HomeFilterBar } from '@/components/home/home-filter-bar';
+import { HomeOverview } from '@/components/home/home-overview';
+import { DecisionPaths } from '@/components/home/decision-paths';
+import { ComparisonTable } from '@/components/home/comparison-table';
+import { RoleFirstView } from '@/components/home/role-first-view';
+import { CampusFirstView } from '@/components/home/campus-first-view';
 
-interface DashboardPageProps {
+import {
+  computeOverview,
+  buildCampusLeaderboard,
+  buildRoleLeaderboard,
+  type ScoreWithContext,
+} from '@/lib/home-aggregations';
+
+import { FocusedDetailView } from './focused-detail-view';
+
+const WINDOW_DAYS = 30;
+export const dynamic = 'force-dynamic';
+
+interface HomePageProps {
   searchParams: { campus?: string; role?: string; confidence?: string };
 }
 
-export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+export default async function HomePage({ searchParams }: HomePageProps) {
   const user = await requireUser();
   const supabase = createClient();
 
-  // ─── Active campus_role pair (defaults to first active row) ─────────────
-  const { data: campusRoles } = await supabase
-    .from('campus_roles')
-    .select('campus_id, role_id, campuses(*), roles(*)')
-    .eq('active', true);
+  const activeCampusId = searchParams.campus?.trim() || null;
+  const activeRoleId = searchParams.role?.trim() || null;
 
-  const activeCampusId = searchParams.campus ?? campusRoles?.[0]?.campus_id ?? 'atlanta';
-  const activeRoleId = searchParams.role ?? campusRoles?.[0]?.role_id ?? 'cft';
-  const activeCampus = campusRoles?.find(cr => cr.campus_id === activeCampusId)?.campuses as any;
-  const activeRole = campusRoles?.find(cr => cr.role_id === activeRoleId)?.roles as any;
+  // ─── Reference lists (campuses + roles + active pairs) ──────────────────
+  const [campusesRes, rolesRes, pairsRes] = await Promise.all([
+    supabase.from('campuses').select('id, name, address, state, active').order('name'),
+    supabase.from('roles').select('id, name, active').order('name'),
+    supabase
+      .from('campus_roles')
+      .select('campus_id, role_id, active')
+      .eq('active', true),
+  ]);
 
-  // Picker options — handle both Supabase shapes (single object or array)
-  const pairOptions: PairOption[] = ((campusRoles as any[]) ?? [])
-    .map(cr => {
-      const campus = Array.isArray(cr.campuses) ? cr.campuses[0] : cr.campuses;
-      const role = Array.isArray(cr.roles) ? cr.roles[0] : cr.roles;
-      if (!campus || !role) return null;
-      return {
-        campus_id: cr.campus_id as string,
-        campus_name: campus.name as string,
-        role_id: cr.role_id as string,
-        role_name: role.name as string,
-      };
-    })
-    .filter((p): p is PairOption => p !== null);
+  const allCampuses = (campusesRes.data ?? []).map(c => ({
+    id: c.id as string,
+    name: c.name as string,
+    address: (c as { address?: string | null }).address ?? null,
+    state: (c as { state?: string | null }).state ?? null,
+    active: (c as { active?: boolean | null }).active !== false,
+  }));
+  const allRoles = (rolesRes.data ?? []).map(r => ({
+    id: r.id as string,
+    name: r.name as string,
+    active: (r as { active?: boolean | null }).active !== false,
+  }));
+  const activePairs = (pairsRes.data ?? []) as Array<{ campus_id: string; role_id: string }>;
+  const activeCampusIds = new Set(activePairs.map(p => p.campus_id));
+  const activeRoleIds = new Set(activePairs.map(p => p.role_id));
 
-  // ─── Latest successful fetch (for header timestamp + trend reference) ──
-  const { data: latestRun } = await supabase
+  // Drop inactive campuses/roles from filter bar selectors so MDs only see
+  // markets we're actually monitoring. Keep them in `allCampuses` for naming.
+  const filterCampuses = allCampuses.filter(c => c.active && activeCampusIds.has(c.id));
+  const filterRoles = allRoles.filter(r => r.active && activeRoleIds.has(r.id));
+
+  // ─── Latest successful fetch across all pairs (freshness indicator) ─────
+  const { data: latestRunAcross } = await supabase
     .from('fetch_runs')
-    .select('id, completed_at, jobs_returned, trigger_type')
-    .eq('campus_id', activeCampusId)
-    .eq('role_id', activeRoleId)
+    .select('completed_at')
     .eq('status', 'success')
     .order('completed_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+  const lastUpdatedISO =
+    (latestRunAcross as { completed_at?: string | null } | null)?.completed_at ?? null;
 
-  // ─── 30-day window cutoff ──────────────────────────────────────────────
+  // ─── Resolve names for the selected filters ─────────────────────────────
+  const activeCampus = activeCampusId
+    ? allCampuses.find(c => c.id === activeCampusId) ?? null
+    : null;
+  const activeRole = activeRoleId
+    ? allRoles.find(r => r.id === activeRoleId) ?? null
+    : null;
+
+  // ─── If both selected → focused detail (existing dashboard) ──────────────
+  if (activeCampusId && activeRoleId && activeCampus && activeRole) {
+    return (
+      <AppShell
+        header={
+          <Header
+            subtitle={
+              <span className="text-sm text-gray-500">
+                {activeRole.name} · {activeCampus.name}
+              </span>
+            }
+            meta={`Focused detail · ${WINDOW_DAYS}-day window`}
+            nav={<NavLinks email={user.email} showAdminLink={user.role === 'admin'} />}
+          />
+        }
+        subnav={
+          <HomeFilterBar
+            campuses={filterCampuses}
+            roles={filterRoles}
+            activeCampusId={activeCampusId}
+            activeRoleId={activeRoleId}
+          />
+        }
+        footer={<Footer />}
+      >
+        <FocusedDetailView
+          campusId={activeCampusId}
+          campusName={activeCampus.name}
+          campusAddress={activeCampus.address}
+          roleId={activeRoleId}
+          roleName={activeRole.name}
+          windowDays={WINDOW_DAYS}
+          confidenceFilter={searchParams.confidence?.toUpperCase() ?? null}
+        />
+      </AppShell>
+    );
+  }
+
+  // ─── Otherwise pull aggregate scores for the window ─────────────────────
+  // Lightweight projection — we only need fields used in tiles + comparison
+  // rows. Dedup to latest score per (job_id, campus_id) in JS.
   const sinceISO = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
-
-  // ─── All score rows in the window for this campus, joined to jobs ──────
-  // We dedupe to "latest score per job" in JS below. Doing it here keeps us
-  // off raw SQL and tolerates the existing Supabase JS query surface.
-  const { data: scoresWindow } = await supabase
+  const { data: rawScores } = await supabase
     .from('job_scores')
-    .select(`
-      *,
-      jobs:job_id (
-        id, source_id, title, organization, url, date_posted,
-        cities_derived, regions_derived, ai_salary_min, ai_salary_max,
-        description_text, ai_key_skills, ai_experience_level, still_active,
-        first_seen_at
-      )
-    `)
-    .eq('campus_id', activeCampusId)
+    .select(
+      `
+        job_id,
+        campus_id,
+        confidence,
+        score,
+        scored_at,
+        taxonomies:taxonomy_id ( role_id ),
+        jobs:job_id ( title, organization, still_active )
+      `,
+    )
     .gte('scored_at', sinceISO)
     .order('scored_at', { ascending: false });
 
-  type ScoreRow = NonNullable<typeof scoresWindow>[number];
-
-  // Latest score per job_id, ignoring inactive jobs in the window
-  const seenJobIds = new Set<string>();
-  const latestPerJob: ScoreRow[] = [];
-  for (const s of (scoresWindow ?? []) as ScoreRow[]) {
-    const jid = (s as any).job_id as string;
-    if (seenJobIds.has(jid)) continue;
-    seenJobIds.add(jid);
-    latestPerJob.push(s);
-  }
-
-  // Optional confidence filter (from URL)
-  const confidenceFilter = searchParams.confidence?.toUpperCase();
-  const tableScoresFiltered = confidenceFilter
-    ? latestPerJob.filter(s => (s as any).confidence === confidenceFilter)
-    : latestPerJob;
-  // JobsTable expects descending score order. We deduped by scored_at, so
-  // re-sort by score for display.
-  const tableScores = [...tableScoresFiltered].sort(
-    (a, b) => ((b as any).score ?? 0) - ((a as any).score ?? 0),
-  );
-
-  // ─── Pipeline stats over the window (deduped) ───────────────────────────
-  const counts = {
-    HIGH: latestPerJob.filter(s => (s as any).confidence === 'HIGH').length,
-    MEDIUM: latestPerJob.filter(s => (s as any).confidence === 'MEDIUM').length,
-    LOW: latestPerJob.filter(s => (s as any).confidence === 'LOW').length,
-    REJECT: latestPerJob.filter(s => (s as any).confidence === 'REJECT').length,
+  type RawScore = {
+    job_id: string;
+    campus_id: string;
+    confidence: string;
+    score: number;
+    scored_at: string;
+    taxonomies: { role_id: string } | { role_id: string }[] | null;
+    jobs: { title: string | null; organization: string | null; still_active: boolean | null } | { title: string | null; organization: string | null; still_active: boolean | null }[] | null;
   };
-  const totalSeen = latestPerJob.length;
-  const stillActive = latestPerJob.filter(s => (s as any).jobs?.still_active !== false).length;
-  const qualifying = counts.HIGH + counts.MEDIUM + counts.LOW;
 
-  // ─── Rejection breakdown (deduped over window) ──────────────────────────
-  const reasonCounts = new Map<string, number>();
-  for (const s of latestPerJob) {
-    const sr = s as any;
-    if (sr.confidence !== 'REJECT') continue;
-    const key = sr.rejection_reason ?? '__below_score_threshold__';
-    reasonCounts.set(key, (reasonCounts.get(key) ?? 0) + 1);
-  }
-  const rejectionReasons: RawReason[] = Array.from(reasonCounts.entries())
-    .map(([reason, count]) => ({ reason, count }))
-    .sort((a, b) => b.count - a.count);
-
-  // ─── Trend chart data (per fetch_run; rescores filtered out in component) ─
-  const { data: runsWindow } = await supabase
-    .from('fetch_runs')
-    .select('id, completed_at, trigger_type')
-    .eq('campus_id', activeCampusId)
-    .eq('role_id', activeRoleId)
-    .eq('status', 'success')
-    .gte('completed_at', sinceISO)
-    .order('completed_at', { ascending: true });
-
-  const trendByRun = new Map<string, { high: number; medium: number; low: number; reject: number }>();
-  for (const s of (scoresWindow ?? []) as ScoreRow[]) {
-    const fri = (s as any).fetch_run_id as string;
-    if (!trendByRun.has(fri)) trendByRun.set(fri, { high: 0, medium: 0, low: 0, reject: 0 });
-    const c = trendByRun.get(fri)!;
-    const conf = ((s as any).confidence as string).toLowerCase() as 'high' | 'medium' | 'low' | 'reject';
-    c[conf]++;
-  }
-  const trend: TrendPoint[] = ((runsWindow as any[]) ?? []).map(r => ({
-    fetchRunId: r.id,
-    date: r.completed_at,
-    triggerType: r.trigger_type,
-    ...(trendByRun.get(r.id) ?? { high: 0, medium: 0, low: 0, reject: 0 }),
-  }));
-
-  // ─── Insight panels (top skills / employers) — 30d deduped, qualifying ──
-  const skillFreq: Record<string, number> = {};
-  latestPerJob
-    .filter(s => (s as any).confidence !== 'REJECT')
-    .forEach(s => {
-      const sr = s as any;
-      [...(sr.core_matched as string[] ?? []), ...(sr.specialized_matched as string[] ?? [])].forEach(
-        (skill: string) => {
-          skillFreq[skill] = (skillFreq[skill] ?? 0) + 1;
-        },
-      );
+  // Dedup keyed by (job_id, campus_id) — latest scored_at wins. We already
+  // ordered desc, so the first hit per key is the latest.
+  const seen = new Set<string>();
+  const rows: ScoreWithContext[] = [];
+  for (const r of (rawScores ?? []) as RawScore[]) {
+    const key = `${r.job_id}|${r.campus_id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const tax = Array.isArray(r.taxonomies) ? r.taxonomies[0] : r.taxonomies;
+    const jb = Array.isArray(r.jobs) ? r.jobs[0] : r.jobs;
+    rows.push({
+      job_id: r.job_id,
+      campus_id: r.campus_id,
+      role_id: tax?.role_id ?? null,
+      confidence: r.confidence as ScoreWithContext['confidence'],
+      score: r.score,
+      scored_at: r.scored_at,
+      job_title: jb?.title ?? null,
+      organization: jb?.organization ?? null,
+      still_active: jb?.still_active ?? null,
+      raw: r,
     });
-  const topSkills = Object.entries(skillFreq).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  }
 
-  const empFreq: Record<string, number> = {};
-  latestPerJob
-    .filter(s => (s as any).confidence !== 'REJECT' && (s as any).jobs?.organization)
-    .forEach(s => {
-      const org = (s as any).jobs!.organization as string;
-      empFreq[org] = (empFreq[org] ?? 0) + 1;
-    });
-  const topEmployers = Object.entries(empFreq).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  // Apply mode-specific filtering
+  const filteredRows =
+    activeRoleId && !activeCampusId
+      ? rows.filter(r => r.role_id === activeRoleId)
+      : activeCampusId && !activeRoleId
+        ? rows.filter(r => r.campus_id === activeCampusId)
+        : rows;
 
-  const subtitle =
-    pairOptions.length > 1 ? (
-      <CampusRolePicker
-        pairs={pairOptions}
-        activeCampusId={activeCampusId}
-        activeRoleId={activeRoleId}
-      />
-    ) : (
-      <span className="text-sm text-gray-500">
-        {activeRole?.name ?? 'Role'} · {activeCampus?.name ?? 'Campus'}
-      </span>
+  // ─── ROLE-FIRST mode ────────────────────────────────────────────────────
+  if (activeRoleId && activeRole && !activeCampusId) {
+    const overview = computeOverview(filteredRows);
+    const compRows = buildCampusLeaderboard(
+      filteredRows,
+      filterCampuses.map(c => ({ id: c.id, name: c.name, state: c.state })),
+      null,
+      cid => `/?campus=${encodeURIComponent(cid)}&role=${encodeURIComponent(activeRoleId)}`,
     );
 
-  const meta = (
-    <>
-      {activeCampus?.address ?? ''}
-      {activeCampus?.default_radius_miles
-        ? ` · ${activeCampus.default_radius_miles}mi radius`
-        : ''}
-      {' · '}
-      {latestRun
-        ? `Last fetch ${new Date((latestRun as any).completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${(latestRun as any).jobs_returned} jobs`
-        : 'No fetches yet — cron runs Mon/Wed/Fri 9am ET'}
-    </>
+    // Top titles across all campuses for this role
+    const titleCount = new Map<string, number>();
+    for (const r of filteredRows) {
+      if (r.confidence === 'REJECT' || !r.job_title) continue;
+      const t = r.job_title.trim();
+      titleCount.set(t, (titleCount.get(t) ?? 0) + 1);
+    }
+    const topTitles = Array.from(titleCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([t]) => t);
+
+    return (
+      <AppShell
+        header={
+          <Header
+            subtitle={<span className="text-sm text-gray-500">Role · {activeRole.name}</span>}
+            meta={`Compare campuses · ${WINDOW_DAYS}-day window`}
+            nav={<NavLinks email={user.email} showAdminLink={user.role === 'admin'} />}
+          />
+        }
+        subnav={
+          <HomeFilterBar
+            campuses={filterCampuses}
+            roles={filterRoles}
+            activeCampusId={null}
+            activeRoleId={activeRoleId}
+          />
+        }
+        footer={<Footer />}
+      >
+        <RoleFirstView
+          roleId={activeRoleId}
+          roleName={activeRole.name}
+          windowDays={WINDOW_DAYS}
+          totals={{
+            records: overview.totalRecords,
+            qualifying: overview.qualifyingRecords,
+            employers: overview.employerCount,
+          }}
+          topTitles={topTitles}
+          rows={compRows}
+        />
+      </AppShell>
+    );
+  }
+
+  // ─── CAMPUS-FIRST mode ──────────────────────────────────────────────────
+  if (activeCampusId && activeCampus && !activeRoleId) {
+    const overview = computeOverview(filteredRows);
+
+    // Roles for THIS campus only — restrict to active pairs for this campus
+    const campusRoleIds = new Set(
+      activePairs.filter(p => p.campus_id === activeCampusId).map(p => p.role_id),
+    );
+    const rolesForCampus = filterRoles.filter(r => campusRoleIds.has(r.id));
+    const compRows = buildRoleLeaderboard(
+      filteredRows,
+      rolesForCampus,
+      rid => `/?campus=${encodeURIComponent(activeCampusId)}&role=${encodeURIComponent(rid)}`,
+    );
+
+    // Top employers and titles across all roles for this campus
+    const employerCount = new Map<string, number>();
+    const titleCount = new Map<string, number>();
+    for (const r of filteredRows) {
+      if (r.confidence === 'REJECT') continue;
+      if (r.organization) {
+        employerCount.set(r.organization, (employerCount.get(r.organization) ?? 0) + 1);
+      }
+      if (r.job_title) {
+        const t = r.job_title.trim();
+        titleCount.set(t, (titleCount.get(t) ?? 0) + 1);
+      }
+    }
+    const topEmployers = Array.from(employerCount.entries()).sort((a, b) => b[1] - a[1]);
+    const topTitles = Array.from(titleCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([t]) => t);
+
+    // Last fetch for this campus
+    const { data: campusLastFetch } = await supabase
+      .from('fetch_runs')
+      .select('completed_at')
+      .eq('campus_id', activeCampusId)
+      .eq('status', 'success')
+      .order('completed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lastFetchISO =
+      (campusLastFetch as { completed_at?: string | null } | null)?.completed_at ?? null;
+
+    return (
+      <AppShell
+        header={
+          <Header
+            subtitle={<span className="text-sm text-gray-500">Campus · {activeCampus.name}</span>}
+            meta={`Compare roles · ${WINDOW_DAYS}-day window`}
+            nav={<NavLinks email={user.email} showAdminLink={user.role === 'admin'} />}
+          />
+        }
+        subnav={
+          <HomeFilterBar
+            campuses={filterCampuses}
+            roles={filterRoles}
+            activeCampusId={activeCampusId}
+            activeRoleId={null}
+          />
+        }
+        footer={<Footer />}
+      >
+        <CampusFirstView
+          campusId={activeCampusId}
+          campusName={activeCampus.name}
+          campusAddress={activeCampus.address}
+          windowDays={WINDOW_DAYS}
+          totals={{
+            records: overview.totalRecords,
+            qualifying: overview.qualifyingRecords,
+            employers: overview.employerCount,
+          }}
+          lastFetchISO={lastFetchISO}
+          topEmployers={topEmployers}
+          topTitles={topTitles}
+          rows={compRows}
+        />
+      </AppShell>
+    );
+  }
+
+  // ─── AGGREGATE mode (the default landing) ───────────────────────────────
+  const overview = computeOverview(rows);
+  const campusRows = buildCampusLeaderboard(
+    rows,
+    filterCampuses.map(c => ({ id: c.id, name: c.name, state: c.state })),
+    null,
+    cid => `/?campus=${encodeURIComponent(cid)}`,
+  );
+  const roleRows = buildRoleLeaderboard(
+    rows,
+    filterRoles,
+    rid => `/?role=${encodeURIComponent(rid)}`,
   );
 
   return (
     <AppShell
       header={
         <Header
-          subtitle={subtitle}
-          meta={meta}
-          nav={
-            <NavLinks email={user.email} showAdminLink={user.role === 'admin'} />
+          subtitle={
+            <span className="text-sm text-gray-500">
+              Workforce intelligence · all campuses · all roles
+            </span>
           }
+          meta={`${WINDOW_DAYS}-day rolling view${
+            lastUpdatedISO ? ` · last fetch ${formatRelative(lastUpdatedISO)}` : ''
+          }`}
+          nav={<NavLinks email={user.email} showAdminLink={user.role === 'admin'} />}
         />
       }
       footer={
         <Footer>
           <div className="mb-2 font-semibold uppercase tracking-wider text-gray-700">
-            Data source
+            About this view
           </div>
           <p>
-            Pipeline view shows the most recent score per unique job seen in the last{' '}
-            {WINDOW_DAYS} days, scored against the active CFT taxonomy. Jobs sourced from the
-            Fantastic Jobs Active Jobs DB (rolling 7-day ATS window). Fetch cadence:
-            Mon/Wed/Fri at 9am ET. Admins can trigger a manual fetch from the Admin panel.
+            Atlas tracks live job postings against curriculum-derived role taxonomies for every
+            active Per Scholas campus. Records reflect the most recent score per unique (job, campus)
+            in the last {WINDOW_DAYS} days. Cron cadence: Mon/Wed/Fri at 9am ET. Admins can trigger
+            a manual fetch from the Admin panel.
           </p>
         </Footer>
       }
+      subnav={
+        <HomeFilterBar
+          campuses={filterCampuses}
+          roles={filterRoles}
+          activeCampusId={null}
+          activeRoleId={null}
+        />
+      }
     >
-      {/* 1. Pipeline overview — 30-day cumulative stats (the headline) */}
-      <PipelineStats
+      {/* 1. Headline numbers */}
+      <HomeOverview
+        totalRecords={overview.totalRecords}
+        qualifyingRecords={overview.qualifyingRecords}
+        campusCount={overview.campusCount}
+        campusTotal={filterCampuses.length}
+        roleCount={overview.roleCount}
+        roleTotal={filterRoles.length}
+        employerCount={overview.employerCount}
+        lastUpdatedISO={lastUpdatedISO}
         windowDays={WINDOW_DAYS}
-        totalSeen={totalSeen}
-        stillActive={stillActive}
-        qualifying={qualifying}
-        counts={counts}
       />
 
-      {/* 2. Detection trend — per-fetch confidence breakdown */}
-      <FetchTrend data={trend} windowDays={WINDOW_DAYS} />
+      {/* 2. Two clear next-step paths */}
+      <DecisionPaths campuses={filterCampuses} roles={filterRoles} />
 
-      {/* 3. Why-filtered + Confidence distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <RejectionBreakdown reasons={rejectionReasons} windowDays={WINDOW_DAYS} />
-        <ConfidenceDistributionPanel
-          counts={counts}
-          total={totalSeen}
-          scores={latestPerJob}
+      {/* 3. Leaderboards — top campuses + top roles */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <ComparisonTable
+          title="Top campuses by opportunity volume"
+          description="Click any campus to anchor the view on that local labor market."
+          rowLabel="Campus"
+          rows={campusRows}
+          ranked
+          emptyMessage="No campus data in this window yet."
+        />
+        <ComparisonTable
+          title="Top roles by opportunity volume"
+          description="Click any role to compare campus performance for that role."
+          rowLabel="Role"
+          rows={roleRows}
+          ranked
+          emptyMessage="No role data in this window yet."
         />
       </div>
-
-      {/* 4. Top Skills + Top Employers */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <TopSkillsPanel skills={topSkills} />
-        <TopEmployersPanel employers={topEmployers} />
-      </div>
-
-      {/* 5. Jobs table — 30-day deduped */}
-      <JobsTable scores={tableScores as any} />
     </AppShell>
   );
+}
+
+function formatRelative(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.valueOf())) return '—';
+  const ageMs = Date.now() - d.valueOf();
+  const ageHours = ageMs / (1000 * 60 * 60);
+  if (ageHours < 1) return 'just now';
+  if (ageHours < 24) return `${Math.round(ageHours)}h ago`;
+  return `${Math.round(ageHours / 24)}d ago`;
 }

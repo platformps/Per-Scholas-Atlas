@@ -14,15 +14,19 @@ import type { ReactNode } from 'react';
 
 interface AppShellProps {
   header: ReactNode;
+  /** Optional sub-nav rendered edge-to-edge between header and content
+   *  (e.g. the homepage filter bar — needs full bleed for sticky correctness). */
+  subnav?: ReactNode;
   footer?: ReactNode;
   children: ReactNode;
 }
 
-export function AppShell({ header, footer, children }: AppShellProps) {
+export function AppShell({ header, subnav, footer, children }: AppShellProps) {
   return (
     <main className="min-h-screen bg-white flex flex-col">
       <div className="brand-accent-bar" aria-hidden />
       {header}
+      {subnav}
       <div className="flex-1 max-w-[1400px] w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
         {children}
         {footer}
