@@ -15,6 +15,14 @@
 //
 // We also surface ?error=domain_restricted from the callback so the user
 // sees a friendly explanation instead of a generic OAuth failure page.
+//
+// Implementation note on Suspense:
+//   Next.js 14 requires useSearchParams() to be wrapped in a Suspense
+//   boundary so the page can still be statically pre-rendered. We isolate
+//   the search-param consumer in <LoginErrorBanner /> and wrap only that
+//   in <Suspense fallback={null}>. The rest of the page (sign-in card,
+//   header, footer) renders without depending on the URL, so it pre-
+//   renders cleanly at build time and the banner streams in client-side.
 
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -25,19 +33,6 @@ import { Button } from '@/components/ui/button';
 const ALLOWED_DOMAIN = 'perscholas.org';
 
 export default function LoginPage() {
-  // useSearchParams must be inside Suspense per Next.js requirements.
-  return (
-    <Suspense fallback={<LoginShell />}>
-      <LoginShell />
-    </Suspense>
-  );
-}
-
-function LoginShell() {
-  const searchParams = useSearchParams();
-  const errorKind = searchParams?.get('error') ?? null;
-  const attempted = searchParams?.get('attempted') ?? null;
-
   const supabase = createClient();
 
   async function signInWithGoogle() {
@@ -76,33 +71,13 @@ function LoginShell() {
             </div>
           </div>
 
-          {errorKind === 'domain_restricted' && (
-            <div className="mb-4 border border-orange/30 bg-orange/5 rounded-sm p-4 text-sm">
-              <div className="font-semibold text-orange uppercase tracking-wider text-xs mb-1">
-                Access restricted
-              </div>
-              <p className="text-gray-700">
-                Atlas is for Per Scholas Workspace accounts only. The account you tried
-                {attempted ? (
-                  <>
-                    {' '}— <code className="text-night">{attempted}</code> —{' '}
-                  </>
-                ) : ' '}
-                isn&apos;t on the <code className="text-night">@{ALLOWED_DOMAIN}</code> domain.
-                Please sign in with your Per Scholas email.
-              </p>
-            </div>
-          )}
-          {errorKind === 'oauth_failed' && (
-            <div className="mb-4 border border-orange/30 bg-orange/5 rounded-sm p-4 text-sm">
-              <div className="font-semibold text-orange uppercase tracking-wider text-xs mb-1">
-                Sign-in failed
-              </div>
-              <p className="text-gray-700">
-                Something went wrong during sign-in. Please try again.
-              </p>
-            </div>
-          )}
+          {/* Search-param-driven error banner. Isolated in a Suspense
+              boundary so the rest of the page can still be statically
+              pre-rendered. fallback={null} → nothing visible while
+              search params resolve client-side. */}
+          <Suspense fallback={null}>
+            <LoginErrorBanner />
+          </Suspense>
 
           <Card>
             <div className="p-8">
@@ -136,6 +111,53 @@ function LoginShell() {
       </main>
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Client component that consumes useSearchParams() to surface auth errors.
+// Rendered inside a Suspense boundary in the parent so the rest of the
+// login page can statically pre-render at build time.
+function LoginErrorBanner() {
+  const searchParams = useSearchParams();
+  const errorKind = searchParams?.get('error') ?? null;
+  const attempted = searchParams?.get('attempted') ?? null;
+
+  if (!errorKind) return null;
+
+  if (errorKind === 'domain_restricted') {
+    return (
+      <div className="mb-4 border border-orange/30 bg-orange/5 rounded-sm p-4 text-sm">
+        <div className="font-semibold text-orange uppercase tracking-wider text-xs mb-1">
+          Access restricted
+        </div>
+        <p className="text-gray-700">
+          Atlas is for Per Scholas Workspace accounts only. The account you tried
+          {attempted ? (
+            <>
+              {' '}— <code className="text-night">{attempted}</code> —{' '}
+            </>
+          ) : ' '}
+          isn&apos;t on the <code className="text-night">@{ALLOWED_DOMAIN}</code> domain.
+          Please sign in with your Per Scholas email.
+        </p>
+      </div>
+    );
+  }
+
+  if (errorKind === 'oauth_failed') {
+    return (
+      <div className="mb-4 border border-orange/30 bg-orange/5 rounded-sm p-4 text-sm">
+        <div className="font-semibold text-orange uppercase tracking-wider text-xs mb-1">
+          Sign-in failed
+        </div>
+        <p className="text-gray-700">
+          Something went wrong during sign-in. Please try again.
+        </p>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 function GoogleMark() {
