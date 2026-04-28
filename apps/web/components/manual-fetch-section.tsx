@@ -63,7 +63,7 @@ function RoleCard({
   quotaBlocked: boolean;
   quotaHint?: string;
 }) {
-  const [open, setOpen] = useState(true); // default: open (single-role v1; small list)
+  const [open, setOpen] = useState(false); // default: closed — admin page lands compact
 
   return (
     <div className="bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden">

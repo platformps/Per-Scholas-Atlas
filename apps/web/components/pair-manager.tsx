@@ -90,7 +90,7 @@ function RoleSection({
   roleName: string;
   pairs: CampusRow[];
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false); // default: closed — admin page lands compact
   const activeCount = pairs.filter(p => p.active).length;
   const total = pairs.length;
   const inactiveCount = total - activeCount;

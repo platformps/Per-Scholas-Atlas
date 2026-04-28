@@ -105,9 +105,9 @@ export function WatchlistEditor({
   }
 
   // Outer collapse — matches the role-grouped pattern used by Manual Fetch
-  // and Pair Manager. Default open so the editor is immediately usable; the
-  // admin can collapse roles they aren't editing.
-  const [open, setOpen] = useState(true);
+  // and Pair Manager. Default closed so the admin page lands compact; the
+  // admin clicks the role they want to edit.
+  const [open, setOpen] = useState(false);
   const categoryCount = Object.keys(draft).length;
 
   return (
