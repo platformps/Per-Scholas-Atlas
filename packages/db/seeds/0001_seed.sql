@@ -6,30 +6,49 @@
 -- ============================================================================
 
 -- Per Scholas campuses (publicly known locations as of 2026)
--- Coordinates verified via geocoding; addresses approximate where exact street unknown.
+-- Reconciled 2026-04-28 against perscholas.org/locations/ canonical list.
+-- 25 active markets representing 31 sites (multi-site markets like NYC, LA,
+-- Pittsburgh, Bay Area, Cincinnati collapse to one row each — geofences
+-- fully overlap so separate rows would just duplicate fetches).
+-- Tampa kept as inactive=FALSE (was in the original BRIEF §3 plan; not in
+-- the current canonical list, retained for history per the append-only philosophy).
 INSERT INTO campuses (id, name, address, city, state, lat, lng, default_radius_miles, active) VALUES
-  ('atlanta',          'Per Scholas Atlanta',          '233 Peachtree St NE, Suite 650, Atlanta, GA 30303',          'Atlanta',          'GA', 33.7596, -84.3880, 100, TRUE),
-  ('baltimore',        'Per Scholas Baltimore',        '1100 Wicomico St, Baltimore, MD 21230',                       'Baltimore',        'MD', 39.2756, -76.6280,  50, TRUE),
-  ('boston',           'Per Scholas Greater Boston',   '281 Summer St, Boston, MA 02210',                             'Boston',           'MA', 42.3505, -71.0468,  50, TRUE),
-  ('bronx',            'Per Scholas National Capital — Bronx',  '804 E 138th St, Bronx, NY 10454',              'Bronx',            'NY', 40.8125, -73.9097,  50, TRUE),
-  ('charlotte',        'Per Scholas Charlotte',        '801 E Morehead St, Charlotte, NC 28202',                      'Charlotte',        'NC', 35.2155, -80.8417,  50, TRUE),
-  ('chicago',          'Per Scholas Chicago',          '20 W Kinzie St, Chicago, IL 60654',                           'Chicago',          'IL', 41.8893, -87.6328,  50, TRUE),
-  ('cincinnati',       'Per Scholas Cincinnati',       '1437 Western Ave, Cincinnati, OH 45214',                      'Cincinnati',       'OH', 39.1145, -84.5340,  50, TRUE),
-  ('columbus',         'Per Scholas Columbus',         '341 S 3rd St, Columbus, OH 43215',                            'Columbus',         'OH', 39.9534, -82.9988,  50, TRUE),
-  ('dallas',           'Per Scholas Dallas',           '8989 Forest Ln, Dallas, TX 75243',                            'Dallas',           'TX', 32.9088, -96.7440,  60, TRUE),
-  ('denver',           'Per Scholas Colorado',         '3801 E Florida Ave, Denver, CO 80210',                        'Denver',           'CO', 39.6796, -104.9476, 50, TRUE),
-  ('detroit',          'Per Scholas Detroit',          '440 Burroughs St, Detroit, MI 48202',                         'Detroit',          'MI', 42.3661, -83.0738,  50, TRUE),
-  ('national_capital', 'Per Scholas National Capital Region', '1110 Vermont Ave NW, Washington, DC 20005',           'Washington',       'DC', 38.9047, -77.0364,  50, TRUE),
-  ('newark',           'Per Scholas Newark',           '550 Broad St, Newark, NJ 07102',                              'Newark',           'NJ', 40.7440, -74.1717,  50, TRUE),
-  ('philadelphia',     'Per Scholas Philadelphia',     '1700 Market St, Philadelphia, PA 19103',                      'Philadelphia',     'PA', 39.9533, -75.1700,  50, TRUE),
-  ('phoenix',          'Per Scholas Phoenix',          '2929 N Central Ave, Phoenix, AZ 85012',                       'Phoenix',          'AZ', 33.4830, -112.0742, 60, TRUE),
-  ('seattle',          'Per Scholas Seattle',          '1525 4th Ave, Seattle, WA 98101',                             'Seattle',          'WA', 47.6097, -122.3380, 50, TRUE),
-  ('st_louis',         'Per Scholas St. Louis',        '1520 Market St, St. Louis, MO 63103',                         'St. Louis',        'MO', 38.6285, -90.2025,  50, TRUE),
-  ('tampa',            'Per Scholas Tampa',            '500 N Westshore Blvd, Tampa, FL 33609',                       'Tampa',            'FL', 27.9510, -82.5236,  50, TRUE)
+  ('atlanta',           'Per Scholas Atlanta',                  '233 Peachtree St NE, Suite 650, Atlanta, GA 30303',                'Atlanta',       'GA', 33.7596, -84.3880, 100, TRUE),
+  ('baltimore',         'Per Scholas Baltimore',                '509 South Exeter Street, Suite 220, Baltimore, MD 21202',          'Baltimore',     'MD', 39.2843, -76.6021,  50, TRUE),
+  ('boston',            'Per Scholas Greater Boston',           '255 Main Street, 8th Floor, Cambridge, MA 02142',                  'Cambridge',     'MA', 42.3623, -71.0843,  50, TRUE),
+  ('bronx',             'Per Scholas Bronx',                    '804 E 138th St #2, Bronx, NY 10454',                               'Bronx',         'NY', 40.8125, -73.9097,  50, TRUE),
+  ('buffalo',           'Per Scholas Buffalo',                  '726 Exchange St., Suite 610, Buffalo, NY 14210',                   'Buffalo',       'NY', 42.8826, -78.8723,  50, TRUE),
+  ('charlotte',         'Per Scholas Charlotte',                '129 West Trade St, Suite 1210, Charlotte, NC 28208',               'Charlotte',     'NC', 35.2272, -80.8430,  50, TRUE),
+  ('chicago',           'Per Scholas Chicago',                  '200 W. Monroe, Suite 1401, Chicago, IL 60606',                     'Chicago',       'IL', 41.8807, -87.6326,  50, TRUE),
+  ('cincinnati',        'Per Scholas Cincinnati',               '800 William L. Mallory, Sr. Street, Cincinnati, OH 45214',         'Cincinnati',    'OH', 39.1057, -84.5340,  50, TRUE),
+  ('columbus',          'Per Scholas Columbus',                 '215 N. Front Street, Columbus, OH 43215',                          'Columbus',      'OH', 39.9656, -83.0011,  50, TRUE),
+  ('dallas',            'Per Scholas Dallas',                   '600 North Pearl St., Suite 1950, Dallas, TX 75201',                'Dallas',        'TX', 32.7860, -96.7989,  60, TRUE),
+  ('denver',            'Per Scholas Colorado',                 '1777 S Harrison Street, Suite 350, Denver, CO 80210',              'Denver',        'CO', 39.6849, -104.9374, 50, TRUE),
+  ('detroit',           'Per Scholas Detroit',                  '3031 W. Grand Blvd., Suite 545, Detroit, MI 48202',                'Detroit',       'MI', 42.3741, -83.0841,  50, TRUE),
+  ('houston',           'Per Scholas Houston',                  '4201 Main St, Houston, TX 77002',                                  'Houston',       'TX', 29.7322, -95.3768,  60, TRUE),
+  ('indianapolis',      'Per Scholas Indianapolis',             '1635 W. Michigan St., Indianapolis, IN 46222',                     'Indianapolis',  'IN', 39.7770, -86.1844,  50, TRUE),
+  ('kansas_city',       'Per Scholas Kansas City',              '300 E 39th St., Kansas City, MO 64111',                            'Kansas City',   'MO', 39.0561, -94.5828,  50, TRUE),
+  ('los_angeles',       'Per Scholas Los Angeles',              '1149 S Hill Street, Suite 450, Los Angeles, CA 90015',             'Los Angeles',   'CA', 34.0407, -118.2641, 60, TRUE),
+  -- 'national_capital' id retained for FK stability — actual address moved to Silver Spring, MD.
+  ('national_capital',  'Per Scholas National Capital Region',  '1400 Spring Street, Suite 501, Silver Spring, MD 20910',           'Silver Spring', 'MD', 38.9907, -77.0289,  50, TRUE),
+  ('newark',            'Per Scholas Newark',                   '12 Lombardy Street, 5th Floor, Newark, NJ 07102',                  'Newark',        'NJ', 40.7409, -74.1685,  50, TRUE),
+  ('orlando',           'Per Scholas Orlando',                  '201 S. Orange Avenue, Suite 640, Orlando, FL 32801',               'Orlando',       'FL', 28.5393, -81.3789,  50, TRUE),
+  ('philadelphia',      'Per Scholas Philadelphia',             '1800 John F Kennedy Blvd, Suite 1801, Philadelphia, PA 19103-7434','Philadelphia',  'PA', 39.9536, -75.1701,  50, TRUE),
+  ('phoenix',           'Per Scholas Phoenix',                  '3003 N Central Ave, Suite 1150, Phoenix, AZ 85012',                'Phoenix',       'AZ', 33.4870, -112.0739, 60, TRUE),
+  ('pittsburgh',        'Per Scholas Pittsburgh',               '200 First Avenue, Suite 203, Pittsburgh, PA 15222',                'Pittsburgh',    'PA', 40.4393, -79.9967,  50, TRUE),
+  ('san_francisco_bay', 'Per Scholas Bay Area',                 '1200 O''Brien Drive, Menlo Park, CA 94025',                        'Menlo Park',    'CA', 37.4842, -122.1428, 50, TRUE),
+  ('seattle',           'Per Scholas Seattle',                  '2101 4th Ave, Suite 600, Seattle, WA 98121',                       'Seattle',       'WA', 47.6131, -122.3409, 50, TRUE),
+  ('st_louis',          'Per Scholas St. Louis',                '20 S. Sarah Street, St. Louis, MO 63108',                          'St. Louis',     'MO', 38.6398, -90.2531,  50, TRUE),
+  -- Tampa: deactivated 2026-04-28 — not in canonical list. Preserved for history.
+  ('tampa',             'Per Scholas Tampa',                    '500 N Westshore Blvd, Tampa, FL 33609',                            'Tampa',         'FL', 27.9510, -82.5236,  50, FALSE)
 ON CONFLICT (id) DO NOTHING;
 
--- NOTE TO ADMIN: campus list above is best-effort from public information as of seed creation.
--- Verify and update via admin UI or direct SQL after deploy. Coordinates/addresses approximate.
+-- NOTE: For changes after seed (address corrections, new markets, etc.), edit
+-- this file AND apply the same change to the live DB via the admin UI or SQL.
+-- Multi-site markets (NYC has Bronx + 2 Brooklyn + Staten Island; LA has main +
+-- Boyle Heights; Pittsburgh has main + Glassport; Cincinnati has main + Covington
+-- KY; Bay Area is Menlo Park) are collapsed to one row per market because
+-- per-site geofences fully overlap and would just duplicate fetches.
 
 -- ============================================================================
 -- Roles
@@ -44,13 +63,19 @@ INSERT INTO roles (id, name, description, soc_codes, cip_codes, certifications, 
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
--- Campus-Role activations (v1: Atlanta CFT only)
+-- Campus-Role activations
+-- For fresh deploys: only Atlanta×CFT is active (v1 launch). Other markets
+-- are seeded as inactive so they appear in the admin UI and can be flipped
+-- on individually. Quota math at full activation (25 markets × 80 jobs ×
+-- MWF cron) is ~26,000/mo, slightly over the 20k Ultra cap — keep ~15
+-- pairs active or drop cron frequency. See docs/runbook.md.
 -- ============================================================================
 INSERT INTO campus_roles (campus_id, role_id, active, notes) VALUES
-  ('atlanta', 'cft', TRUE, 'v1 launch role. Activate other campuses by setting active=TRUE here.'),
+  ('atlanta', 'cft', TRUE, 'v1 launch role. Activate other campuses by setting active=TRUE here or via admin UI.'),
   ('baltimore', 'cft', FALSE, 'Add when ready'),
   ('boston', 'cft', FALSE, 'Add when ready'),
   ('bronx', 'cft', FALSE, 'Add when ready'),
+  ('buffalo', 'cft', FALSE, 'Add when ready'),
   ('charlotte', 'cft', FALSE, 'Add when ready'),
   ('chicago', 'cft', FALSE, 'Add when ready'),
   ('cincinnati', 'cft', FALSE, 'Add when ready'),
@@ -58,13 +83,20 @@ INSERT INTO campus_roles (campus_id, role_id, active, notes) VALUES
   ('dallas', 'cft', FALSE, 'Add when ready'),
   ('denver', 'cft', FALSE, 'Add when ready'),
   ('detroit', 'cft', FALSE, 'Add when ready'),
+  ('houston', 'cft', FALSE, 'Add when ready'),
+  ('indianapolis', 'cft', FALSE, 'Add when ready'),
+  ('kansas_city', 'cft', FALSE, 'Add when ready'),
+  ('los_angeles', 'cft', FALSE, 'Add when ready'),
   ('national_capital', 'cft', FALSE, 'Add when ready'),
   ('newark', 'cft', FALSE, 'Add when ready'),
+  ('orlando', 'cft', FALSE, 'Add when ready'),
   ('philadelphia', 'cft', FALSE, 'Add when ready'),
   ('phoenix', 'cft', FALSE, 'Add when ready'),
+  ('pittsburgh', 'cft', FALSE, 'Add when ready'),
+  ('san_francisco_bay', 'cft', FALSE, 'Add when ready'),
   ('seattle', 'cft', FALSE, 'Add when ready'),
   ('st_louis', 'cft', FALSE, 'Add when ready'),
-  ('tampa', 'cft', FALSE, 'Add when ready')
+  ('tampa', 'cft', FALSE, 'Tampa not in canonical Per Scholas list as of 2026-04-28; preserved for history.')
 ON CONFLICT (campus_id, role_id) DO NOTHING;
 
 -- NOTE: The active CFT taxonomy is loaded from packages/taxonomy/schemas/cft.json

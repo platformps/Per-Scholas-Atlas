@@ -33,7 +33,7 @@ BEGIN
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email),
     CASE
-      WHEN NEW.email = 'shahparan.hasnat@gmail.com' THEN 'admin'::user_role
+      WHEN NEW.email = 'ashahparan@perscholas.org' THEN 'admin'::user_role
       ELSE 'viewer'::user_role
     END
   )
