@@ -30,7 +30,10 @@ import {
 import { scoreJob } from '@per-scholas/scoring';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+// Bumped from 60 → 300 alongside fetch-jobs. With 18 active pairs, a
+// rescore touches ~450+ score rows; even at 50ms/op (~23s) we're fine
+// in 60s, but the headroom helps if the active set grows.
+export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 const BATCH_SIZE = 100;          // per-insert batch for job_scores

@@ -39,14 +39,18 @@ import {
 } from '@/lib/scoring-helpers';
 import { scoreJob } from '@per-scholas/scoring';
 
-// Vercel route segment config — these calls take longer than the default 10s.
-// Pro tier supports up to 60s, hobby is 10s. See BRIEF §2 (Vercel Pro).
+// Vercel route segment config — Pro tier supports up to 300s for serverless
+// functions. With 18 active pairs running sequentially at ~5s each, the
+// cron's worst case is ~90–180s; 300s gives comfortable headroom and
+// leaves room for taxonomy/quota work added later.
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 const QUOTA_MONTHLY = 20000;
 const QUOTA_BLOCK_RATIO = 0.15;        // BRIEF §3 — refuse below 15% remaining
+const QUOTA_RESERVE = QUOTA_MONTHLY * QUOTA_BLOCK_RATIO; // = 3000 jobs reserved
+const ESTIMATED_JOBS_PER_PAIR = 80;    // empirical; updated as we learn
 const MANUAL_THROTTLE_MS = 24 * 60 * 60 * 1000;
 const MAX_PER_PAIR = 500;              // pagination cap
 
@@ -85,7 +89,7 @@ export async function POST(request: Request) {
   // Service role for all writes; bypasses RLS on the worker-only tables.
   const sb = createServiceClient();
 
-  // ─── Quota guard ─────────────────────────────────────────────────────
+  // ─── Reactive quota guard (current state below 15%) ─────────────────
   const quotaState = await readLatestQuota(sb);
   if (
     quotaState.jobs_remaining != null &&
@@ -109,16 +113,84 @@ export async function POST(request: Request) {
     );
   }
 
+  // ─── Predictive quota guard (this run's estimated burn) ─────────────
+  // Refuses up front if running every active pair would push remaining
+  // below the 15% reserve. Avoids the "started OK, ended in overage"
+  // failure mode you'd otherwise hit at full multi-pair scale.
+  if (quotaState.jobs_remaining != null) {
+    const estimatedBurn = pairs.length * ESTIMATED_JOBS_PER_PAIR;
+    const wouldRemain = quotaState.jobs_remaining - estimatedBurn;
+    if (wouldRemain < QUOTA_RESERVE) {
+      return NextResponse.json(
+        {
+          error: `Quota safety: estimated burn of ${estimatedBurn} jobs across ${pairs.length} pair${pairs.length === 1 ? '' : 's'} would leave ${wouldRemain} (< ${QUOTA_RESERVE} reserve). Refused.`,
+          quota: quotaState,
+          pairs: pairs.length,
+          estimated_burn: estimatedBurn,
+        },
+        { status: 429 },
+      );
+    }
+  }
+
+  // Shared accumulator: union of source_ids seen across every successful
+  // pair in this cron invocation. Used by the parent-level still_active
+  // reconciliation that runs ONCE after all pairs complete (not per-pair —
+  // per-pair reconciliation cross-thrashes campuses at multi-pair scale
+  // by marking other campuses' jobs inactive on each pair iteration).
+  const allSeenSourceIds = new Set<string>();
+
   const results: PairResult[] = [];
   for (const pair of pairs) {
-    results.push(await runPair(sb, pair, triggerType, auth));
+    results.push(await runPair(sb, pair, triggerType, auth, allSeenSourceIds));
+  }
+
+  // ─── Union-based still_active reconciliation ───────────────────────
+  // Only safe when every pair succeeded — otherwise we'd be marking
+  // jobs inactive based on a partial picture (a failed pair didn't get
+  // a chance to refresh its jobs' last_seen_at, so they'd look "missing"
+  // and incorrectly flip to still_active=false). Skipping on failure is
+  // fine: the next successful cron will reconcile.
+  let jobsMarkedInactiveTotal = 0;
+  const allSucceeded = results.length > 0 && results.every(r => r.status === 'success');
+  if (allSucceeded && allSeenSourceIds.size > 0) {
+    jobsMarkedInactiveTotal = await reconcileStillActive(sb, allSeenSourceIds);
   }
 
   return NextResponse.json({
     trigger_type: triggerType,
     pairs: pairs.length,
+    jobs_marked_inactive: jobsMarkedInactiveTotal,
+    reconciliation_skipped: !allSucceeded || allSeenSourceIds.size === 0,
     results,
   });
+}
+
+// Union-based still_active reconciliation. Runs at the END of a cron
+// invocation, after every pair has had a chance to refresh last_seen_at on
+// jobs it saw. Marks any still_active=true job whose source_id wasn't seen
+// by ANY pair in this run as inactive. Independent of campus scoping —
+// `still_active` is a global "is this job still listed in the API" flag,
+// not a per-pair concept.
+async function reconcileStillActive(
+  sb: ReturnType<typeof createServiceClient>,
+  seenSourceIds: Set<string>,
+): Promise<number> {
+  const { data: activeNow } = await sb
+    .from('jobs')
+    .select('id, source_id')
+    .eq('still_active', true);
+  if (!activeNow) return 0;
+  const inactiveIds: string[] = [];
+  for (const r of activeNow as Array<{ id: string; source_id: string }>) {
+    if (!seenSourceIds.has(r.source_id)) inactiveIds.push(r.id);
+  }
+  if (inactiveIds.length === 0) return 0;
+  for (let i = 0; i < inactiveIds.length; i += 100) {
+    const chunk = inactiveIds.slice(i, i + 100);
+    await sb.from('jobs').update({ still_active: false }).in('id', chunk);
+  }
+  return inactiveIds.length;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -164,11 +236,19 @@ async function checkManualThrottle(
 }
 
 // ─── Per-pair pipeline ──────────────────────────────────────────────────
+//
+// The `allSeenSourceIds` parameter is the cron-level accumulator. Each
+// successful pair adds the source_ids it saw — the parent reconciler then
+// uses the union to mark globally-vanished jobs inactive once at the end.
+// Per-pair reconciliation was removed because at multi-pair scale it
+// cross-thrashes campuses (each pair would mark other campuses' jobs
+// inactive on its iteration).
 async function runPair(
   sb: ReturnType<typeof createServiceClient>,
   pair: PairRow,
   triggerType: 'scheduled' | 'manual',
   auth: Awaited<ReturnType<typeof authorizeAdminOrCron>>,
+  allSeenSourceIds: Set<string>,
 ): Promise<PairResult> {
   const { campus, role } = pair;
 
@@ -227,8 +307,9 @@ async function runPair(
       maxTotal: MAX_PER_PAIR,
     });
 
-    // Upsert jobs
-    const seenSourceIds = new Set<string>();
+    // Upsert jobs. Source_ids accumulate into BOTH the per-pair set
+    // (which we don't currently expose, but kept for clarity) and the
+    // cron-wide accumulator the parent uses for union reconciliation.
     let jobsNew = 0;
     let jobsUpdated = 0;
     const jobIdBySourceId = new Map<string, string>();
@@ -237,7 +318,7 @@ async function runPair(
       const dbRow = rawJobToDbRow(raw);
       if (!dbRow) continue;
       const sid = dbRow.source_id as string;
-      seenSourceIds.add(sid);
+      allSeenSourceIds.add(sid);
 
       const { data: existing } = await sb
         .from('jobs')
@@ -273,25 +354,8 @@ async function runPair(
       }
     }
 
-    // Reconcile still_active — jobs we had as active but didn't see this run.
-    // Only safe to do AFTER we've fetched ALL pages for this pair (we have).
-    const { data: activeNow } = await sb
-      .from('jobs')
-      .select('id, source_id')
-      .eq('still_active', true);
-    const inactiveIds: string[] = [];
-    for (const r of (activeNow as any[]) ?? []) {
-      if (!seenSourceIds.has(r.source_id)) inactiveIds.push(r.id);
-    }
-    let jobsMarkedInactive = 0;
-    if (inactiveIds.length > 0) {
-      // .in_() chunked to keep URL length sane
-      for (let i = 0; i < inactiveIds.length; i += 100) {
-        const chunk = inactiveIds.slice(i, i + 100);
-        await sb.from('jobs').update({ still_active: false }).in('id', chunk);
-      }
-      jobsMarkedInactive = inactiveIds.length;
-    }
+    // (Per-pair still_active reconciliation moved to the parent route
+    // handler — see reconcileStillActive() at the bottom of this file.)
 
     // Score every job we saw + insert immutable job_scores row
     const campusCtx = makeCampusContext(campus);
@@ -312,7 +376,9 @@ async function runPair(
       scoresComputed++;
     }
 
-    // Close fetch_run
+    // Close fetch_run. `jobs_marked_inactive` is now reconciled at the
+    // cron level (after all pairs run) — per-pair is always 0 because
+    // any single pair only sees its own slice of the world.
     await sb
       .from('fetch_runs')
       .update({
@@ -322,7 +388,7 @@ async function runPair(
         jobs_returned: rawJobs.length,
         jobs_new: jobsNew,
         jobs_updated: jobsUpdated,
-        jobs_marked_inactive: jobsMarkedInactive,
+        jobs_marked_inactive: 0,
         scores_computed: scoresComputed,
         quota_jobs_remaining: quota.jobs_remaining,
         quota_requests_remaining: quota.requests_remaining,
@@ -363,7 +429,7 @@ async function runPair(
       jobs_returned: rawJobs.length,
       jobs_new: jobsNew,
       jobs_updated: jobsUpdated,
-      jobs_marked_inactive: jobsMarkedInactive,
+      jobs_marked_inactive: 0, // reconciled at cron level after all pairs
       scores_computed: scoresComputed,
     };
   } catch (err) {
