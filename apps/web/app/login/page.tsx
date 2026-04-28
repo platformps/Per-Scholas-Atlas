@@ -121,15 +121,16 @@ function LoginShell() {
                 Continue with Google
               </Button>
 
-              <div className="mt-6 pt-6 border-t border-gray-100 text-xs text-gray-500">
-                Access is restricted to <code className="text-night">@{ALLOWED_DOMAIN}</code>{' '}
-                accounts. Admin permissions are granted to authorized Per Scholas staff only.
+              <div className="mt-6 pt-6 border-t border-gray-100 text-xs text-gray-500 leading-relaxed">
+                Sign-in is limited to Per Scholas Workspace (
+                <code className="text-night">@{ALLOWED_DOMAIN}</code>) accounts. Admin
+                access is granted to authorized Per Scholas staff only.
               </div>
             </div>
           </Card>
 
           <div className="mt-8 text-center text-xs text-gray-400">
-            v1 · Atlas pilot · Per Scholas national workforce intelligence
+            v1 pilot · All Per Scholas campuses · Critical Facilities Technician
           </div>
         </div>
       </main>
