@@ -22,28 +22,38 @@ export const dynamic = 'force-dynamic';
 // Question metadata for the TOC and section anchors.
 const QUESTIONS: Array<{ id: string; title: string; eyebrow: string }> = [
   {
-    id: 'taxonomy',
+    id: 'overview',
     eyebrow: 'Q1',
+    title: 'What is this Atlas app? What does it do?',
+  },
+  {
+    id: 'layman',
+    eyebrow: 'Q2',
+    title: "How does this app work in layman's terms?",
+  },
+  {
+    id: 'taxonomy',
+    eyebrow: 'Q3',
     title: 'How does a taxonomy work? (CFT example)',
   },
   {
     id: 'grading',
-    eyebrow: 'Q2',
+    eyebrow: 'Q4',
     title: 'How are jobs graded — what do the weights and rubrics mean?',
   },
   {
     id: 'schedule',
-    eyebrow: 'Q3',
+    eyebrow: 'Q5',
     title: 'How does the schedule work, and what happens after a fetch?',
   },
   {
     id: 'low-volume',
-    eyebrow: 'Q4',
+    eyebrow: 'Q6',
     title: 'Why are there relatively few records and limited HIGH-confidence ones?',
   },
   {
     id: 'learning',
-    eyebrow: 'Q5',
+    eyebrow: 'Q7',
     title: 'Does the app learn from records over time?',
   },
 ];
@@ -103,8 +113,147 @@ export default async function FAQPage() {
         </div>
       </Card>
 
-      {/* Q1 — taxonomy */}
-      <FaqSection id="taxonomy" eyebrow="Q1" title="How does a taxonomy work? (CFT example)">
+      {/* Q1 — what is Atlas */}
+      <FaqSection
+        id="overview"
+        eyebrow="Q1"
+        title="What is this Atlas app? What does it do?"
+      >
+        <p>
+          Atlas is Per Scholas' internal workforce-intelligence dashboard. It turns the
+          live job market into a clear, comparable signal for every active Per Scholas
+          campus and every role we train for, so program leadership can see where the
+          opportunity is — and where it isn't — before making cohort, partnership, or
+          curriculum decisions.
+        </p>
+        <p>
+          Three times a week (Mon / Wed / Fri at 9am ET), Atlas pulls fresh job postings
+          from a Job API for each active campus × role pair. Each posting is scored against
+          a curriculum-derived <strong>taxonomy</strong> — a JSON definition of what a "good
+          fit" looks like for a role (titles, skills, certifications, employer types, etc.)
+          — and bucketed into one of four bands:{' '}
+          <Badge tone="royal" variant="soft" size="sm">HIGH</Badge>{' '}
+          <Badge tone="ocean" variant="soft" size="sm">MEDIUM</Badge>{' '}
+          <Badge tone="yellow" variant="soft" size="sm">LOW</Badge>{' '}
+          <Badge tone="gray" variant="soft" size="sm">REJECT</Badge>. The dashboard shows
+          you the most recent score per unique posting over a rolling 30-day window.
+        </p>
+        <p>The homepage gives you four ways to look at the same dataset:</p>
+        <ul className="list-disc pl-5 space-y-1.5 marker:text-gray-300">
+          <li>
+            <strong>Overview</strong> — aggregate metrics across all campuses and all
+            roles. Top-roles and top-campuses leaderboards rank by opportunity volume.
+          </li>
+          <li>
+            <strong>Role-first</strong> (pick a role) — campus performance comparison for
+            that role. "Which markets have the strongest opportunity signal for
+            Cybersecurity Analyst?"
+          </li>
+          <li>
+            <strong>Campus-first</strong> (pick a campus) — role breakdown for that local
+            labor market, plus top employers and common titles. "What's strongest in
+            Newark right now?"
+          </li>
+          <li>
+            <strong>Focused detail</strong> (pick both) — full job table, score breakdowns,
+            rejection reasons, fetch-by-fetch trend, and the qualifying employer list.
+          </li>
+        </ul>
+        <p>
+          Atlas is not a job board for graduates and it's not an AI matching engine. It's a
+          deterministic decision-support tool: a Managing Director should be able to walk
+          into a quarterly planning meeting and answer "what is the labor market doing for
+          our graduates?" with current evidence in under five minutes.
+        </p>
+      </FaqSection>
+
+      {/* Q2 — layman's terms */}
+      <FaqSection
+        id="layman"
+        eyebrow="Q2"
+        title="How does this app work in layman's terms?"
+      >
+        <p>
+          Forget the dashboards for a minute and imagine a person doing this job by hand:
+        </p>
+        <ol className="list-decimal pl-5 space-y-2 marker:text-gray-400">
+          <li>
+            <strong>Three times a week, they read the want-ads.</strong> Specifically the
+            ads near each Per Scholas campus that were posted in the last week. They have
+            a list of campuses and their commute radius (e.g. "Newark, within 50 miles").
+            Today's "want-ads" are pulled from a Job API instead of a newspaper.
+          </li>
+          <li>
+            <strong>For every ad, they ask a checklist of questions about whether one of
+            our graduates could realistically do that job.</strong> The checklist comes
+            from the curriculum. For Critical Facilities Technician (CFT), it looks
+            something like this:
+            <ul className="list-disc pl-5 mt-2 space-y-1 marker:text-gray-300">
+              <li>Does the title sound like a CFT job? ("Data Center Technician" → yes; "Senior Network Architect" → no)</li>
+              <li>Does the description mention things our graduates learned? (UPS systems, generators, HVAC, OSHA 10, NFPA 70E, …)</li>
+              <li>Is it entry-level? (No "5+ years required", no Bachelor's-required, no "Senior" / "Lead" / "Manager" titles)</li>
+              <li>Is the employer the kind of place we want graduates to work? (Hyperscalers, colocation operators, hospitals, telecom, …)</li>
+              <li>Is the location actually commutable from the campus?</li>
+            </ul>
+          </li>
+          <li>
+            <strong>They tally up "yeses" and "noes" and put the ad into one of four
+            piles.</strong>{' '}
+            <Badge tone="royal" variant="soft" size="sm">HIGH</Badge> — strong fit,
+            multiple matches, definitely worth pursuing.{' '}
+            <Badge tone="ocean" variant="soft" size="sm">MEDIUM</Badge> — decent fit,
+            worth a look.{' '}
+            <Badge tone="yellow" variant="soft" size="sm">LOW</Badge> — title sounds
+            right but the description is thin.{' '}
+            <Badge tone="gray" variant="soft" size="sm">REJECT</Badge> — clearly not a
+            fit (wrong seniority, wrong industry, too far away, etc.).
+          </li>
+          <li>
+            <strong>They write down what matched and why</strong> — which job title pattern
+            triggered, which skills appeared, which employer category was hit, why anything
+            was rejected. So later, anyone can second-guess the decision.
+          </li>
+          <li>
+            <strong>They roll the answers up into a report</strong>: how many ads they read
+            this round, how many landed in each pile, which campuses had the most action,
+            which employers showed up most, what titles are trending. That report becomes
+            the dashboard you're looking at.
+          </li>
+        </ol>
+        <p>
+          The app is doing exactly that — just with code instead of a person, and three
+          times a week instead of once a year. The "checklist" lives in a file called the
+          taxonomy, which is editable: when curriculum changes or someone spots a flagged
+          job that's clearly wrong, the checklist gets updated and the next round uses
+          the new rules.
+        </p>
+        <p>
+          A few practical things that follow from this mental model:
+        </p>
+        <ul className="list-disc pl-5 space-y-1.5 marker:text-gray-300">
+          <li>
+            Atlas <em>cannot</em> see jobs that aren't posted publicly. Hidden requisitions,
+            internal-only postings, and word-of-mouth opportunities are invisible to it.
+          </li>
+          <li>
+            Atlas <em>doesn't recommend a candidate</em> for a job — it tells you which
+            jobs are likely a good fit for your graduates, not the other way around.
+          </li>
+          <li>
+            Atlas <em>doesn't learn on its own</em>. If the same kind of bad match keeps
+            getting flagged, the cure is to update the taxonomy (which any admin can do
+            from the Admin panel) — not to wait for the app to "figure it out."
+          </li>
+          <li>
+            Numbers will look small at first. That's by design — the strict rules and the
+            entry-level filters cut a lot of noise. A sparse-but-trustworthy list is more
+            useful than a noisy one.
+          </li>
+        </ul>
+      </FaqSection>
+
+      {/* Q3 — taxonomy */}
+      <FaqSection id="taxonomy" eyebrow="Q3" title="How does a taxonomy work? (CFT example)">
         <p>
           A <em>taxonomy</em> is a JSON file that encodes what a "good fit" looks like for one
           role. Atlas keeps one active taxonomy per role; the active CFT taxonomy is
@@ -211,10 +360,10 @@ export default async function FAQPage() {
         </p>
       </FaqSection>
 
-      {/* Q2 — grading */}
+      {/* Q4 — grading */}
       <FaqSection
         id="grading"
-        eyebrow="Q2"
+        eyebrow="Q4"
         title="How are jobs graded — what do the weights and rubrics mean?"
       >
         <p>
@@ -269,10 +418,10 @@ export default async function FAQPage() {
         </p>
       </FaqSection>
 
-      {/* Q3 — schedule */}
+      {/* Q5 — schedule */}
       <FaqSection
         id="schedule"
-        eyebrow="Q3"
+        eyebrow="Q5"
         title="How does the schedule work, and what happens after a fetch?"
       >
         <p>
@@ -325,10 +474,10 @@ export default async function FAQPage() {
         </p>
       </FaqSection>
 
-      {/* Q4 — low volume */}
+      {/* Q6 — low volume */}
       <FaqSection
         id="low-volume"
-        eyebrow="Q4"
+        eyebrow="Q6"
         title="Why are there relatively few records and limited HIGH-confidence ones?"
       >
         <p>
@@ -379,10 +528,10 @@ export default async function FAQPage() {
         </p>
       </FaqSection>
 
-      {/* Q5 — learning */}
+      {/* Q7 — learning */}
       <FaqSection
         id="learning"
-        eyebrow="Q5"
+        eyebrow="Q7"
         title="Does the app learn from records over time?"
       >
         <p>
