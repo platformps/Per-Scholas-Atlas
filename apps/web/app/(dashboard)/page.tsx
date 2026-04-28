@@ -125,7 +125,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </span>
             }
             meta={`Focused detail · ${WINDOW_DAYS}-day window`}
-            nav={<NavLinks email={user.email} showAdminLink={user.role === 'admin'} />}
+            nav={
+              <NavLinks
+                email={user.email}
+                showHomeLink
+                showAdminLink={user.role === 'admin'}
+              />
+            }
           />
         }
         subnav={
@@ -241,7 +247,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <Header
             subtitle={<span className="text-sm text-gray-500">Role · {activeRole.name}</span>}
             meta={`Compare campuses · ${WINDOW_DAYS}-day window`}
-            nav={<NavLinks email={user.email} showAdminLink={user.role === 'admin'} />}
+            nav={
+              <NavLinks
+                email={user.email}
+                showHomeLink
+                showAdminLink={user.role === 'admin'}
+              />
+            }
           />
         }
         subnav={
@@ -322,7 +334,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <Header
             subtitle={<span className="text-sm text-gray-500">Campus · {activeCampus.name}</span>}
             meta={`Compare roles · ${WINDOW_DAYS}-day window`}
-            nav={<NavLinks email={user.email} showAdminLink={user.role === 'admin'} />}
+            nav={
+              <NavLinks
+                email={user.email}
+                showHomeLink
+                showAdminLink={user.role === 'admin'}
+              />
+            }
           />
         }
         subnav={

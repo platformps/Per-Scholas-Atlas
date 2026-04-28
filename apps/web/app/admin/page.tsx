@@ -187,7 +187,7 @@ export default async function AdminPage() {
         <Header
           subtitle={<span className="text-sm text-gray-500">Admin · Operations</span>}
           meta="Manual fetches, recent runs, RapidAPI quota, audit log."
-          nav={<NavLinks email={user.email} showDashboardLink />}
+          nav={<NavLinks email={user.email} showHomeLink />}
         />
       }
       footer={<Footer />}
