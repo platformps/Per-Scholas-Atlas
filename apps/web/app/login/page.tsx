@@ -1,15 +1,43 @@
 'use client';
 
 // Login page — Atlas wordmark + Per Scholas attribution, single Google
-// sign-in. Brand-aligned: white surface, navy/royal type, hairline border,
-// generous negative space. Geometric brand-accent strip at the top per the
-// brand book's "supergraphic" guidance.
+// sign-in restricted to the @perscholas.org Workspace domain.
+//
+// Three layers of access control work together:
+//   1. queryParams.hd → tells Google's account chooser to only show
+//      accounts on the perscholas.org Workspace. UX nicety; not a real
+//      gate (someone could craft a different OAuth request).
+//   2. /auth/callback → server-side check on the email domain after
+//      the code exchange. If the email doesn't end in @perscholas.org
+//      the user is signed out and bounced back here with an error.
+//   3. handle_new_user() Postgres trigger → refuses to insert a row in
+//      public.users for non-@perscholas.org emails. Defense in depth.
+//
+// We also surface ?error=domain_restricted from the callback so the user
+// sees a friendly explanation instead of a generic OAuth failure page.
 
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase-browser';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
+const ALLOWED_DOMAIN = 'perscholas.org';
+
 export default function LoginPage() {
+  // useSearchParams must be inside Suspense per Next.js requirements.
+  return (
+    <Suspense fallback={<LoginShell />}>
+      <LoginShell />
+    </Suspense>
+  );
+}
+
+function LoginShell() {
+  const searchParams = useSearchParams();
+  const errorKind = searchParams?.get('error') ?? null;
+  const attempted = searchParams?.get('attempted') ?? null;
+
   const supabase = createClient();
 
   async function signInWithGoogle() {
@@ -17,6 +45,9 @@ export default function LoginPage() {
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        // Restricts Google's account chooser to the Per Scholas Workspace.
+        // The hd parameter is honored by Google for hosted-domain accounts.
+        queryParams: { hd: ALLOWED_DOMAIN, prompt: 'select_account' },
       },
     });
     if (error) console.error('Sign-in error:', error);
@@ -45,11 +76,39 @@ export default function LoginPage() {
             </div>
           </div>
 
+          {errorKind === 'domain_restricted' && (
+            <div className="mb-4 border border-orange/30 bg-orange/5 rounded-sm p-4 text-sm">
+              <div className="font-semibold text-orange uppercase tracking-wider text-xs mb-1">
+                Access restricted
+              </div>
+              <p className="text-gray-700">
+                Atlas is for Per Scholas Workspace accounts only. The account you tried
+                {attempted ? (
+                  <>
+                    {' '}— <code className="text-night">{attempted}</code> —{' '}
+                  </>
+                ) : ' '}
+                isn&apos;t on the <code className="text-night">@{ALLOWED_DOMAIN}</code> domain.
+                Please sign in with your Per Scholas email.
+              </p>
+            </div>
+          )}
+          {errorKind === 'oauth_failed' && (
+            <div className="mb-4 border border-orange/30 bg-orange/5 rounded-sm p-4 text-sm">
+              <div className="font-semibold text-orange uppercase tracking-wider text-xs mb-1">
+                Sign-in failed
+              </div>
+              <p className="text-gray-700">
+                Something went wrong during sign-in. Please try again.
+              </p>
+            </div>
+          )}
+
           <Card>
             <div className="p-8">
               <h2 className="text-lg font-semibold text-night mb-1">Sign in</h2>
               <p className="text-sm text-gray-600 mb-6">
-                Use your Google or Per Scholas Workspace account to continue.
+                Use your Per Scholas Workspace account to continue.
               </p>
 
               <Button
@@ -63,8 +122,8 @@ export default function LoginPage() {
               </Button>
 
               <div className="mt-6 pt-6 border-t border-gray-100 text-xs text-gray-500">
-                Open access for any Google account. Admin role is granted to authorized
-                Per Scholas staff only.
+                Access is restricted to <code className="text-night">@{ALLOWED_DOMAIN}</code>{' '}
+                accounts. Admin permissions are granted to authorized Per Scholas staff only.
               </div>
             </div>
           </Card>
