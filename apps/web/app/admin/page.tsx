@@ -192,6 +192,47 @@ export default async function AdminPage() {
       }
       footer={<Footer />}
     >
+      {/* Brief orientation strip — gives a first-time admin a 3-second read
+          on what each section below is for. Sits above the manual-fetch
+          area which is the most-used admin tool. */}
+      <Card>
+        <div className="p-5 sm:p-6">
+          <div className="flex items-baseline gap-3 flex-wrap mb-2">
+            <Badge tone="navy" variant="soft" size="sm">Admin orientation</Badge>
+            <span className="text-[11px] text-gray-400">
+              Read once, then it's all muscle memory.
+            </span>
+          </div>
+          <ul className="text-sm text-gray-700 space-y-1.5 leading-relaxed list-disc pl-5 marker:text-gray-300">
+            <li>
+              <strong>Manual fetch</strong> — kick off an out-of-cycle Job API run for a
+              single campus, a whole role, or every active pair. Most admins won't need
+              this often; the cron handles the regular cadence.
+            </li>
+            <li>
+              <strong>Campus × role pairs</strong> — turn monitoring on or off for a
+              campus &times; role combination. Activating a pair adds it to the next
+              cron run; deactivating preserves history but stops new fetches.
+            </li>
+            <li>
+              <strong>Taxonomy tuning</strong> — adjust HIGH / MEDIUM / LOW thresholds
+              and the employer watchlist for each active role. Saving creates a new
+              taxonomy version; older scores stay pinned to the version they ran under.
+            </li>
+            <li>
+              <strong>Recent fetch runs &amp; audit log</strong> — verify the cron is
+              healthy and see who did what. If a run failed, the error message lives in
+              the right-most column.
+            </li>
+          </ul>
+          <p className="text-xs text-gray-500 mt-3">
+            New here? See <a href="/faq" className="text-royal hover:text-navy underline-offset-2 hover:underline">FAQ</a> for the
+            full mental model — taxonomy structure, how scoring works, and what the
+            schedule looks like.
+          </p>
+        </div>
+      </Card>
+
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-3">
           <div>

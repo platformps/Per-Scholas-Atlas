@@ -129,7 +129,7 @@ function LoginShell() {
           </Card>
 
           <div className="mt-8 text-center text-xs text-gray-400">
-            v1 · Atlas pilot · Atlanta · Critical Facilities Technician
+            v1 · Atlas pilot · Per Scholas national workforce intelligence
           </div>
         </div>
       </main>
