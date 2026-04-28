@@ -57,7 +57,7 @@ export function CampusRolePicker({ pairs, activeCampusId, activeRoleId }: Campus
         <select
           value={activeCampusId}
           onChange={e => navigate(e.target.value, activeRoleId)}
-          className="border border-gray-300 rounded-sm px-2 py-1 text-sm bg-white text-night focus:outline-none focus:border-royal"
+          className="border border-gray-300 rounded-sm px-2 py-1 text-sm bg-white text-night focus:outline-none focus:ring-2 focus:ring-royal/30 focus:border-royal transition-colors duration-150"
           aria-label="Select campus"
         >
           {campusesForRole.map(p => (
@@ -71,7 +71,7 @@ export function CampusRolePicker({ pairs, activeCampusId, activeRoleId }: Campus
         <select
           value={activeRoleId}
           onChange={e => navigate(activeCampusId, e.target.value)}
-          className="border border-gray-300 rounded-sm px-2 py-1 text-sm bg-white text-night focus:outline-none focus:border-royal"
+          className="border border-gray-300 rounded-sm px-2 py-1 text-sm bg-white text-night focus:outline-none focus:ring-2 focus:ring-royal/30 focus:border-royal transition-colors duration-150"
           aria-label="Select role"
         >
           {rolesForCampus.map(p => (

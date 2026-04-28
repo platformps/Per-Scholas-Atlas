@@ -8,6 +8,11 @@ import { PairManager, type CampusRow, type CampusOption, type RoleOption } from 
 import { ManualFetchSection, type RoleGroup } from '@/components/manual-fetch-section';
 import { ThresholdEditor } from '@/components/threshold-editor';
 import { WatchlistEditor } from '@/components/watchlist-editor';
+import { AppShell } from '@/components/layout/app-shell';
+import { Header, NavLinks } from '@/components/layout/header';
+import { Footer } from '@/components/layout/footer';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 const QUOTA_MONTHLY = 20000;
 const QUOTA_BLOCK_RATIO = 0.15;
@@ -177,73 +182,45 @@ export default async function AdminPage() {
   const quotaPct = quotaRatio != null ? Math.round(quotaRatio * 100) : null;
 
   return (
-    <main className="min-h-screen bg-white">
-      <div className="brand-accent-bar" aria-hidden />
-
-      <header className="border-b border-gray-200 bg-white">
-        <div className="max-w-[1400px] mx-auto px-6 py-5 flex items-center justify-between gap-6">
-          <div className="flex items-center gap-5 min-w-0">
-            {/* Per Scholas 30th Anniversary horizontal logo */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/per-scholas-logo.png"
-              alt="Per Scholas"
-              className="h-10 w-auto shrink-0"
-            />
-            <div className="h-10 w-px bg-gray-200 shrink-0" aria-hidden />
-            <div className="min-w-0">
-              <div className="flex items-baseline gap-3 flex-wrap">
-                <h1 className="text-2xl font-bold tracking-tight text-night leading-none">Atlas</h1>
-                <span className="text-sm text-gray-500">Admin · Operations</span>
-              </div>
-              <div className="text-xs text-gray-500 mt-1.5">
-                Manual fetches, recent runs, RapidAPI quota, audit log.
-              </div>
-            </div>
+    <AppShell
+      header={
+        <Header
+          subtitle={<span className="text-sm text-gray-500">Admin · Operations</span>}
+          meta="Manual fetches, recent runs, RapidAPI quota, audit log."
+          nav={<NavLinks email={user.email} showDashboardLink />}
+        />
+      }
+      footer={<Footer />}
+    >
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-3">
+          <div>
+            <SectionHeader label="Manual fetch" />
+            <p className="text-sm text-gray-600 mt-1 mb-4 max-w-xl">
+              Triggers an immediate RapidAPI fetch and scoring run. Per-campus throttled at 1 per
+              24 hours. Refused if quota is below {Math.round(QUOTA_BLOCK_RATIO * 100)}%. The
+              "Fetch all" button on each role triggers all of its active campuses in one call.
+            </p>
           </div>
-          <nav className="flex items-center gap-5 text-sm shrink-0">
-            <a
-              href="/"
-              className="text-royal hover:text-navy font-semibold uppercase tracking-wider text-xs"
-            >
-              Dashboard
-            </a>
-            <span className="hidden sm:inline text-gray-600">{user.email}</span>
-            <a
-              href="/auth/signout"
-              className="text-gray-500 hover:text-gray-800 uppercase tracking-wider text-xs"
-            >
-              Sign out
-            </a>
-          </nav>
+          <ManualFetchSection
+            roles={roleGroups}
+            quotaBlocked={quotaBlocked}
+            quotaHint={quotaBlocked ? 'Blocked: quota below 15%.' : undefined}
+          />
         </div>
-      </header>
 
-      <div className="max-w-[1400px] mx-auto px-6 py-8 space-y-8">
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 space-y-3">
-            <div>
-              <SectionHeader label="Manual fetch" />
-              <p className="text-sm text-gray-600 mt-1 mb-4 max-w-xl">
-                Triggers an immediate RapidAPI fetch and scoring run. Per-campus throttled at 1 per
-                24 hours. Refused if quota is below {Math.round(QUOTA_BLOCK_RATIO * 100)}%. The
-                "Fetch all" button on each role triggers all of its active campuses in one call.
-              </p>
-            </div>
-            <ManualFetchSection
-              roles={roleGroups}
-              quotaBlocked={quotaBlocked}
-              quotaHint={quotaBlocked ? 'Blocked: quota below 15%.' : undefined}
-            />
-          </div>
-
-          <div className="bg-white border border-gray-200 rounded-md p-5 shadow-sm">
+        <Card>
+          <div className="p-6">
             <SectionHeader label="RapidAPI quota" />
             {jobsRemaining == null ? (
-              <div className="text-sm text-gray-500">No quota snapshot yet — runs once after the first fetch.</div>
+              <div className="text-sm text-gray-500">
+                No quota snapshot yet — runs once after the first fetch.
+              </div>
             ) : (
               <>
-                <div className={`text-4xl font-bold tracking-tight leading-none ${quotaBlocked ? 'text-orange' : 'text-night'}`}>
+                <div
+                  className={`text-4xl font-bold tracking-tight leading-none ${quotaBlocked ? 'text-orange' : 'text-night'}`}
+                >
                   {jobsRemaining.toLocaleString()}
                 </div>
                 <div className="text-sm text-gray-500 mt-1.5">
@@ -268,59 +245,63 @@ export default async function AdminPage() {
               </>
             )}
           </div>
-        </section>
+        </Card>
+      </section>
 
+      <section>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-base font-semibold text-night">Campus × role pairs</h2>
+          <span className="text-xs text-gray-400">
+            {allPairs.length} total · {allPairs.filter(p => p.active).length} active
+          </span>
+        </div>
+        <PairManager pairs={allPairs} allCampuses={allCampuses} allRoles={allRoles} />
+      </section>
+
+      {taxonomyEdits.length > 0 && (
         <section>
           <div className="flex items-baseline justify-between mb-3">
-            <h2 className="text-base font-semibold text-night">Campus × role pairs</h2>
-            <span className="text-xs text-gray-400">{allPairs.length} total · {allPairs.filter(p => p.active).length} active</span>
+            <h2 className="text-base font-semibold text-night">Taxonomy tuning</h2>
+            <span className="text-xs text-gray-400">
+              {taxonomyEdits.length} active taxonom{taxonomyEdits.length === 1 ? 'y' : 'ies'}
+            </span>
           </div>
-          <PairManager pairs={allPairs} allCampuses={allCampuses} allRoles={allRoles} />
+          <p className="text-xs text-gray-500 mb-4 max-w-2xl">
+            Edit operational knobs on the active taxonomy for each role. Each save creates a
+            new patch version and deactivates the previous one — no redeploy required, but the
+            source <code className="text-night">cft.json</code> file in the repo goes out of sync
+            until reconciled.
+          </p>
+          <div className="space-y-5">
+            {taxonomyEdits.map(t => (
+              <div key={t.id} className="space-y-4">
+                <ThresholdEditor
+                  roleId={t.role_id}
+                  roleName={t.role_name}
+                  taxonomyVersion={t.version}
+                  current={t.thresholds}
+                />
+                <WatchlistEditor
+                  roleId={t.role_id}
+                  roleName={t.role_name}
+                  taxonomyVersion={t.version}
+                  weightPerMatch={t.weight_per_match}
+                  categories={t.categories}
+                />
+              </div>
+            ))}
+          </div>
         </section>
+      )}
 
-        {taxonomyEdits.length > 0 && (
-          <section>
-            <div className="flex items-baseline justify-between mb-3">
-              <h2 className="text-base font-semibold text-night">Taxonomy tuning</h2>
-              <span className="text-xs text-gray-400">
-                {taxonomyEdits.length} active taxonom{taxonomyEdits.length === 1 ? 'y' : 'ies'}
-              </span>
-            </div>
-            <p className="text-xs text-gray-500 mb-4 max-w-2xl">
-              Edit operational knobs on the active taxonomy for each role. Each save creates a
-              new patch version and deactivates the previous one — no redeploy required, but the
-              source <code className="text-night">cft.json</code> file in the repo goes out of sync
-              until reconciled.
-            </p>
-            <div className="space-y-5">
-              {taxonomyEdits.map(t => (
-                <div key={t.id} className="space-y-4">
-                  <ThresholdEditor
-                    roleId={t.role_id}
-                    roleName={t.role_name}
-                    taxonomyVersion={t.version}
-                    current={t.thresholds}
-                  />
-                  <WatchlistEditor
-                    roleId={t.role_id}
-                    roleName={t.role_name}
-                    taxonomyVersion={t.version}
-                    weightPerMatch={t.weight_per_match}
-                    categories={t.categories}
-                  />
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <section>
-          <div className="flex items-baseline justify-between mb-3">
-            <h2 className="text-base font-semibold text-night">Recent fetch runs</h2>
-            <span className="text-xs text-gray-400">last 20</span>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden">
-            <div className="grid grid-cols-[100px_90px_140px_120px_90px_70px_70px_70px_1fr] gap-3 px-5 py-2.5 border-b border-gray-200 bg-gray-50 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+      <section>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-base font-semibold text-night">Recent fetch runs</h2>
+          <span className="text-xs text-gray-400">last 20</span>
+        </div>
+        <Card>
+          <div className="overflow-x-auto">
+            <div className="grid grid-cols-[100px_90px_140px_120px_90px_70px_70px_70px_1fr] gap-3 px-6 py-2.5 border-b border-gray-200 bg-gray-50 text-[11px] font-semibold uppercase tracking-wider text-gray-500 min-w-[900px]">
               <div>Trigger</div>
               <div>Status</div>
               <div>Started</div>
@@ -332,11 +313,11 @@ export default async function AdminPage() {
               <div>Error</div>
             </div>
             {(recentRuns as RunRow[] | null)?.length ? (
-              <ul className="divide-y divide-gray-100">
+              <ul className="divide-y divide-gray-100 min-w-[900px]">
                 {(recentRuns as RunRow[]).map(r => (
                   <li
                     key={r.id}
-                    className="grid grid-cols-[100px_90px_140px_120px_90px_70px_70px_70px_1fr] gap-3 px-5 py-2.5 text-sm"
+                    className="grid grid-cols-[100px_90px_140px_120px_90px_70px_70px_70px_1fr] gap-3 px-6 py-2.5 text-sm"
                   >
                     <span className="text-gray-700">{r.trigger_type}</span>
                     <StatusPill status={r.status} />
@@ -356,44 +337,52 @@ export default async function AdminPage() {
                     <span className="text-gray-700 text-right tabular-nums">
                       {r.scores_computed ?? 0}
                     </span>
-                    <span className="text-orange truncate text-xs" title={r.error_message ?? ''}>
+                    <span
+                      className="text-orange truncate text-xs"
+                      title={r.error_message ?? ''}
+                    >
                       {r.error_message ?? ''}
                     </span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <div className="px-5 py-6 text-sm text-gray-500">No fetch runs yet.</div>
+              <div className="px-6 py-6 text-sm text-gray-500">No fetch runs yet.</div>
             )}
           </div>
-        </section>
+        </Card>
+      </section>
 
-        <section>
-          <div className="flex items-baseline justify-between mb-3">
-            <h2 className="text-base font-semibold text-night">Audit log</h2>
-            <span className="text-xs text-gray-400">last 15</span>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden">
-            {(audit as AuditRow[] | null)?.length ? (
-              <ul className="divide-y divide-gray-100">
-                {(audit as AuditRow[]).map(a => (
-                  <li key={a.id} className="px-5 py-2.5 text-sm flex items-baseline justify-between gap-4">
-                    <span className="text-gray-500 w-[140px] flex-shrink-0">{formatTime(a.occurred_at)}</span>
-                    <span className="text-night font-medium">{a.action}</span>
-                    <span className="text-gray-500 truncate flex-1">
-                      {a.user_email ?? 'system'}
-                      {a.entity_id ? ` → ${a.entity_type}/${a.entity_id.slice(0, 8)}` : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="px-5 py-6 text-sm text-gray-500">No audit entries yet.</div>
-            )}
-          </div>
-        </section>
-      </div>
-    </main>
+      <section>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-base font-semibold text-night">Audit log</h2>
+          <span className="text-xs text-gray-400">last 15</span>
+        </div>
+        <Card>
+          {(audit as AuditRow[] | null)?.length ? (
+            <ul className="divide-y divide-gray-100">
+              {(audit as AuditRow[]).map(a => (
+                <li
+                  key={a.id}
+                  className="px-6 py-2.5 text-sm flex items-baseline justify-between gap-4"
+                >
+                  <span className="text-gray-500 w-[140px] flex-shrink-0">
+                    {formatTime(a.occurred_at)}
+                  </span>
+                  <span className="text-night font-medium">{a.action}</span>
+                  <span className="text-gray-500 truncate flex-1">
+                    {a.user_email ?? 'system'}
+                    {a.entity_id ? ` → ${a.entity_type}/${a.entity_id.slice(0, 8)}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="px-6 py-6 text-sm text-gray-500">No audit entries yet.</div>
+          )}
+        </Card>
+      </section>
+    </AppShell>
   );
 }
 
@@ -405,17 +394,15 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 function StatusPill({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    success: 'bg-royal/10 text-royal border-royal/20',
-    running: 'bg-yellow/15 text-night border-yellow/30',
-    failed:  'bg-orange/10 text-orange border-orange/20',
-  };
+  const tone: Parameters<typeof Badge>[0]['tone'] =
+    status === 'success' ? 'royal' :
+    status === 'running' ? 'yellow' :
+    status === 'failed'  ? 'orange' :
+                           'gray';
   return (
-    <span
-      className={`inline-block border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider rounded-sm leading-5 ${map[status] ?? 'bg-cloud text-gray-600 border-gray-200'}`}
-    >
+    <Badge tone={tone} variant="soft" size="sm">
       {status}
-    </span>
+    </Badge>
   );
 }
 

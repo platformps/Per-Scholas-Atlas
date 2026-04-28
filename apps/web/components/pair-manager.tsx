@@ -13,6 +13,10 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { Card } from './ui/card';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
+import { TextField, SelectField, FieldWrapper, Checkbox } from './ui/field';
 
 interface CampusRow {
   campus_id: string;
@@ -47,9 +51,9 @@ export function PairManager({ pairs, allCampuses, allRoles }: PairManagerProps) 
 function PairsByRole({ pairs }: { pairs: CampusRow[] }) {
   if (pairs.length === 0) {
     return (
-      <div className="bg-white border border-gray-200 rounded-md p-6 text-sm text-gray-500">
-        No pairs yet. Add one below.
-      </div>
+      <Card>
+        <div className="p-6 text-sm text-gray-500">No pairs yet. Add one below.</div>
+      </Card>
     );
   }
   // Group by role
@@ -96,16 +100,16 @@ function RoleSection({
   const inactiveCount = total - activeCount;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden">
-      <header className="flex items-center justify-between gap-4 px-5 py-3.5 border-b border-gray-200 bg-gray-50">
+    <Card>
+      <header className="flex items-center justify-between gap-4 px-6 py-4 border-b border-gray-200 bg-gray-50">
         <button
           type="button"
           onClick={() => setOpen(o => !o)}
           aria-expanded={open}
-          className="flex items-center gap-3 text-left flex-1 min-w-0 hover:opacity-80 transition-opacity"
+          className="flex items-center gap-3 text-left flex-1 min-w-0 hover:bg-gray-100 -mx-2 px-2 py-1 rounded-sm transition-colors duration-150"
         >
           <span
-            className="text-gray-400 text-sm transition-transform"
+            className="text-gray-400 text-sm transition-transform duration-150"
             style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}
             aria-hidden
           >
@@ -121,7 +125,7 @@ function RoleSection({
 
       {open && (
         <div>
-          <div className="grid grid-cols-[minmax(200px,2fr)_100px_minmax(120px,1fr)] gap-3 px-5 py-2 border-b border-gray-100 bg-gray-50/50 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+          <div className="grid grid-cols-[minmax(200px,2fr)_100px_minmax(120px,1fr)] gap-3 px-6 py-2 border-b border-gray-100 bg-gray-50/50 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
             <div>Campus</div>
             <div>State</div>
             <div className="text-right">Action</div>
@@ -133,7 +137,7 @@ function RoleSection({
           </ul>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -170,32 +174,24 @@ function BulkRoleButtons({ pairs }: { pairs: CampusRow[] }) {
 
   return (
     <div className="flex items-center gap-2 shrink-0">
-      <button
-        type="button"
+      <Button
+        variant="primary"
+        size="sm"
         onClick={() => bulk(activateTargets, true)}
-        disabled={pending || activateTargets.length === 0}
-        className={[
-          'px-3 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-sm transition-colors',
-          pending || activateTargets.length === 0
-            ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'
-            : 'bg-royal text-white hover:bg-navy shadow-sm',
-        ].join(' ')}
+        disabled={activateTargets.length === 0}
+        loading={pending}
       >
         Activate inactive ({activateTargets.length})
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={() => bulk(deactivateTargets, false)}
-        disabled={pending || deactivateTargets.length === 0}
-        className={[
-          'px-3 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-sm transition-colors',
-          pending || deactivateTargets.length === 0
-            ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'
-            : 'border border-gray-300 text-gray-700 hover:bg-gray-50',
-        ].join(' ')}
+        disabled={deactivateTargets.length === 0}
+        loading={pending}
       >
         Deactivate active ({deactivateTargets.length})
-      </button>
+      </Button>
       {error && <span className="text-xs text-orange ml-2">{error}</span>}
     </div>
   );
@@ -236,7 +232,7 @@ function PairRow({ row }: { row: CampusRow }) {
   const buttonDisabled = pending || campusInactive;
 
   return (
-    <li className="grid grid-cols-[minmax(200px,2fr)_100px_minmax(120px,1fr)] gap-3 px-5 py-3 text-sm items-center hover:bg-gray-50 transition-colors">
+    <li className="grid grid-cols-[minmax(200px,2fr)_100px_minmax(120px,1fr)] gap-3 px-6 py-3 text-sm items-center hover:bg-gray-50 transition-colors duration-150">
       <span className={`font-medium truncate ${campusInactive ? 'text-gray-400 line-through' : 'text-night'}`}>
         {row.campus_name}
         {campusInactive && (
@@ -246,42 +242,26 @@ function PairRow({ row }: { row: CampusRow }) {
         )}
       </span>
       <span>
-        <ActiveBadge active={active} />
+        <Badge tone={active ? 'royal' : 'gray'} variant="soft" size="sm">
+          {active ? 'Active' : 'Inactive'}
+        </Badge>
       </span>
       <span className="text-right">
-        <button
-          type="button"
+        <Button
+          variant={active ? 'secondary' : 'primary'}
+          size="sm"
           onClick={toggle}
           disabled={buttonDisabled}
+          loading={pending}
           title={campusInactive ? 'Campus itself is inactive — re-activate the campus before scheduling' : undefined}
-          className={[
-            'inline-flex items-center px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded-sm transition-colors',
-            buttonDisabled
-              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : active
-                ? 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-                : 'bg-royal text-white hover:bg-navy',
-          ].join(' ')}
         >
-          {pending ? '…' : active ? 'Deactivate' : 'Activate'}
-        </button>
+          {active ? 'Deactivate' : 'Activate'}
+        </Button>
         {error && (
           <span className="block text-[11px] text-orange mt-1">{error}</span>
         )}
       </span>
     </li>
-  );
-}
-
-function ActiveBadge({ active }: { active: boolean }) {
-  return active ? (
-    <span className="inline-block bg-royal/10 text-royal border border-royal/20 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider rounded-sm">
-      Active
-    </span>
-  ) : (
-    <span className="inline-block bg-cloud text-gray-600 border border-gray-200 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider rounded-sm">
-      Inactive
-    </span>
   );
 }
 
@@ -337,74 +317,61 @@ function AddPairForm({
   }
 
   return (
-    <div className="border border-gray-200 rounded-md bg-white shadow-sm p-5">
-      <h3 className="text-sm font-semibold text-night mb-1">Add a new pair</h3>
-      <p className="text-xs text-gray-500 mb-4">
-        Combine a seeded campus with a seeded role. Existing combinations appear in the role
-        sections above.
-      </p>
+    <Card>
+      <div className="p-6">
+        <h3 className="text-sm font-semibold text-night mb-1">Add a new pair</h3>
+        <p className="text-xs text-gray-500 mb-4">
+          Combine a seeded campus with a seeded role. Existing combinations appear in the role
+          sections above.
+        </p>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1.5 text-xs">
-          <span className="font-medium text-gray-700">Campus</span>
-          <select
-            value={campusId}
-            onChange={e => setCampusId(e.target.value)}
-            className="border border-gray-300 rounded-sm px-2 py-1.5 bg-white text-night focus:outline-none focus:border-royal min-w-[180px]"
+        <div className="flex flex-wrap items-end gap-3">
+          <FieldWrapper label="Campus" className="min-w-[180px]">
+            <SelectField value={campusId} onChange={e => setCampusId(e.target.value)}>
+              <option value="">— pick —</option>
+              {allCampuses.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name}{c.active ? '' : ' (inactive)'}
+                </option>
+              ))}
+            </SelectField>
+          </FieldWrapper>
+          <FieldWrapper label="Role" className="min-w-[180px]">
+            <SelectField value={roleId} onChange={e => setRoleId(e.target.value)}>
+              <option value="">— pick —</option>
+              {allRoles.map(r => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </SelectField>
+          </FieldWrapper>
+          <div className="self-end pb-2">
+            <Checkbox
+              checked={active}
+              onChange={e => setActive(e.target.checked)}
+              label="Activate immediately"
+            />
+          </div>
+          <Button
+            variant="primary"
+            size="md"
+            onClick={submit}
+            disabled={!campusId || !roleId || !!isExisting}
+            loading={pending}
+            className="self-end"
           >
-            <option value="">— pick —</option>
-            {allCampuses.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.name}{c.active ? '' : ' (inactive)'}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1.5 text-xs">
-          <span className="font-medium text-gray-700">Role</span>
-          <select
-            value={roleId}
-            onChange={e => setRoleId(e.target.value)}
-            className="border border-gray-300 rounded-sm px-2 py-1.5 bg-white text-night focus:outline-none focus:border-royal min-w-[180px]"
-          >
-            <option value="">— pick —</option>
-            {allRoles.map(r => (
-              <option key={r.id} value={r.id}>{r.name}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-2 text-sm self-end pb-1.5">
-          <input
-            type="checkbox"
-            checked={active}
-            onChange={e => setActive(e.target.checked)}
-            className="rounded-sm"
-          />
-          <span className="text-gray-700">Activate immediately</span>
-        </label>
-        <button
-          type="button"
-          onClick={submit}
-          disabled={pending || !campusId || !roleId || !!isExisting}
-          className={[
-            'self-end px-4 py-2 text-sm font-semibold rounded-sm transition-colors',
-            pending || !campusId || !roleId || !!isExisting
-              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              : 'bg-royal text-white hover:bg-navy',
-          ].join(' ')}
-        >
-          {pending ? 'Adding…' : 'Add pair'}
-        </button>
-      </div>
-
-      {isExisting && (
-        <div className="text-xs text-gray-500 mt-3">
-          {campusId} × {roleId} already exists. Toggle it from the role section above.
+            Add pair
+          </Button>
         </div>
-      )}
-      {error && <div className="text-xs text-orange mt-3">{error}</div>}
-      {success && <div className="text-xs text-royal mt-3">{success}</div>}
-    </div>
+
+        {isExisting && (
+          <div className="text-xs text-gray-500 mt-3">
+            {campusId} × {roleId} already exists. Toggle it from the role section above.
+          </div>
+        )}
+        {error && <div className="text-xs text-orange mt-3">{error}</div>}
+        {success && <div className="text-xs text-royal mt-3">{success}</div>}
+      </div>
+    </Card>
   );
 }
 

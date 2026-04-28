@@ -1,11 +1,8 @@
 // 30-day pipeline overview — primary headline metrics for the dashboard.
-// Replaces the old "latest fetch" headline in the same visual slot. The
-// difference matters: the latest fetch is a snapshot, the 30-day view is
-// the actual pipeline of CFT-aligned candidate roles in the metro.
-//
-// Distinct from `StatCards` (latest-fetch view, kept for the small footer
-// callout), this component leans more brand-confident — bigger numbers,
-// clearer hierarchy, more explanatory sublabels.
+// Six tiles: Seen, Still Active, Qualifying, High, Medium, Low. Uses
+// the shared <Card> primitive and a local BigStat helper.
+
+import { Card } from './ui/card';
 
 interface PipelineStatsProps {
   windowDays: number;
@@ -29,7 +26,7 @@ export function PipelineStats({
       <BigStat
         label={`Seen · ${windowDays}d`}
         value={totalSeen}
-        sublabel={`unique postings`}
+        sublabel="unique postings"
         tone="neutral"
       />
       <BigStat
@@ -51,7 +48,7 @@ export function PipelineStats({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── BigStat tile ────────────────────────────────────────────────────────────
 
 interface BigStatProps {
   label: string;
@@ -70,16 +67,16 @@ const TONE_CLASSES: Record<NonNullable<BigStatProps['tone']>, string> = {
 
 function BigStat({ label, value, sublabel, tone = 'neutral' }: BigStatProps) {
   return (
-    <div className="bg-white border border-gray-200 rounded-md p-5 shadow-sm">
-      <div className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-2">
-        {label}
+    <Card>
+      <div className="p-6">
+        <div className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-2">
+          {label}
+        </div>
+        <div className={`text-4xl font-semibold tracking-tight leading-none ${TONE_CLASSES[tone]}`}>
+          {value}
+        </div>
+        {sublabel && <div className="text-xs text-gray-500 mt-2">{sublabel}</div>}
       </div>
-      <div className={`text-4xl font-semibold tracking-tight leading-none ${TONE_CLASSES[tone]}`}>
-        {value}
-      </div>
-      {sublabel && (
-        <div className="text-xs text-gray-500 mt-2">{sublabel}</div>
-      )}
-    </div>
+    </Card>
   );
 }

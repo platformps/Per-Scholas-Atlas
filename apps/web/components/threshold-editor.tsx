@@ -11,6 +11,8 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { Card } from './ui/card';
+import { Button } from './ui/button';
 
 interface ThresholdEditorProps {
   roleId: string;
@@ -68,68 +70,66 @@ export function ThresholdEditor({
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-md shadow-sm p-5">
-      <div className="flex items-baseline justify-between mb-1">
-        <h3 className="text-sm font-semibold text-night">Score thresholds — {roleName}</h3>
-        <span className="text-xs text-gray-400">active: v{taxonomyVersion}</span>
-      </div>
-      <p className="text-xs text-gray-500 mb-4 leading-relaxed">
-        Cutoffs that determine HIGH / MEDIUM / LOW / REJECT. A score of <em>n</em> is HIGH if{' '}
-        <em>n ≥ HIGH</em>, MEDIUM if <em>n ≥ MEDIUM</em>, LOW if <em>n ≥ LOW</em>, otherwise REJECT.
-        Saving creates a new patch version of the active taxonomy.
-      </p>
+    <Card>
+      <div className="p-6">
+        <div className="flex items-baseline justify-between mb-1">
+          <h3 className="text-sm font-semibold text-night">Score thresholds — {roleName}</h3>
+          <span className="text-xs text-gray-400">active: v{taxonomyVersion}</span>
+        </div>
+        <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+          Cutoffs that determine HIGH / MEDIUM / LOW / REJECT. A score of <em>n</em> is HIGH if{' '}
+          <em>n ≥ HIGH</em>, MEDIUM if <em>n ≥ MEDIUM</em>, LOW if <em>n ≥ LOW</em>, otherwise REJECT.
+          Saving creates a new patch version of the active taxonomy.
+        </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <ThresholdField
-          label="HIGH"
-          value={high}
-          onChange={setHigh}
-          color="text-royal"
-          hint={`scored ≥ ${high} → HIGH`}
-        />
-        <ThresholdField
-          label="MEDIUM"
-          value={medium}
-          onChange={setMedium}
-          color="text-ocean"
-          hint={`${medium} – ${high - 1} → MEDIUM`}
-        />
-        <ThresholdField
-          label="LOW"
-          value={low}
-          onChange={setLow}
-          color="text-yellow"
-          hint={`${low} – ${medium - 1} → LOW; below ${low} → REJECT`}
-        />
-      </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <ThresholdField
+            label="HIGH"
+            value={high}
+            onChange={setHigh}
+            color="text-royal"
+            hint={`scored ≥ ${high} → HIGH`}
+          />
+          <ThresholdField
+            label="MEDIUM"
+            value={medium}
+            onChange={setMedium}
+            color="text-ocean"
+            hint={`${medium} – ${high - 1} → MEDIUM`}
+          />
+          <ThresholdField
+            label="LOW"
+            value={low}
+            onChange={setLow}
+            color="text-yellow"
+            hint={`${low} – ${medium - 1} → LOW; below ${low} → REJECT`}
+          />
+        </div>
 
-      <div className="flex items-center gap-3 mt-5 pt-4 border-t border-gray-100">
-        <button
-          type="button"
-          onClick={save}
-          disabled={pending || !dirty || !valid}
-          className={[
-            'px-4 py-2 text-sm font-semibold rounded-sm transition-colors',
-            pending || !dirty || !valid
-              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              : 'bg-royal text-white hover:bg-navy',
-          ].join(' ')}
-        >
-          {pending ? 'Saving…' : 'Save thresholds'}
-        </button>
-        {dirty && !pending && (
-          <button
-            type="button"
-            onClick={reset}
-            className="text-xs text-gray-500 hover:text-gray-800 underline"
+        <div className="flex items-center gap-3 mt-5 pt-4 border-t border-gray-100">
+          <Button
+            variant="primary"
+            size="md"
+            onClick={save}
+            disabled={!dirty || !valid}
+            loading={pending}
           >
-            Reset
-          </button>
-        )}
-        {error && <span className="text-xs text-orange">{error}</span>}
-        {success && <span className="text-xs text-royal">{success}</span>}
+            Save thresholds
+          </Button>
+          {dirty && !pending && (
+            <button
+              type="button"
+              onClick={reset}
+              className="text-xs text-gray-500 hover:text-gray-800 underline"
+            >
+              Reset
+            </button>
+          )}
+          {error && <span className="text-xs text-orange">{error}</span>}
+          {success && <span className="text-xs text-royal">{success}</span>}
+        </div>
       </div>
-    </div>
+    </Card>
   );
 }
 

@@ -7,33 +7,54 @@
    royal for emphasis"). */
 :root {
   color-scheme: light;
+
+  /* Brand color tokens — mirror tailwind.config.ts. CSS vars make the
+     palette usable in inline styles, dynamic SVG gradients, and any
+     runtime color decisions. */
+  --brand-night:  #071E39;
+  --brand-navy:   #09507C;
+  --brand-royal:  #0079C0;
+  --brand-ocean:  #009CDB;
+  --brand-sky:    #7DC5D7;
+  --brand-orange: #FF8000;
+  --brand-yellow: #FEC14F;
+  --brand-cloud:  #EAE7DF;
+
+  /* UI surface tokens — used by primitives in components/ui */
+  --focus-ring: var(--brand-royal);
+  --accent-bar-height: 4px;
 }
 
 html, body {
   background: #ffffff;
-  color: #111827; /* near-black; gives a subtle warmth vs pure #000 */
+  color: #111827; /* near-black; subtle warmth vs pure #000 */
 }
 
-/* Numerical / monospace surfaces (job IDs, timestamps, counts) */
 .tabular-nums { font-variant-numeric: tabular-nums; }
 
-/* Brand-friendly focus ring — uses Royal so it reads on white */
+/* Brand-friendly focus ring on every interactive element */
 *:focus-visible {
-  outline: 2px solid #0079C0;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+  border-radius: 2px;
 }
 
-/* A subtle geometric accent strip you can drop into headers — echoes the
-   brand book's "geometric supergraphics" without committing to large
-   triangle blocks. Use as <div class="brand-accent-bar" /> */
+/* Hide focus ring for mouse users; keep for keyboard. The default in modern
+   browsers; restated here for older Chromium behavior. */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Geometric supergraphic strip — drop into page tops. Echoes the brand
+   book's geometric supergraphics without committing to large blocks. */
 .brand-accent-bar {
-  height: 4px;
+  height: var(--accent-bar-height);
   background: linear-gradient(
     90deg,
-    #071E39 0%,
-    #09507C 25%,
-    #0079C0 50%,
-    #009CDB 75%,
-    #FF8000 100%
+    var(--brand-night) 0%,
+    var(--brand-navy) 25%,
+    var(--brand-royal) 50%,
+    var(--brand-ocean) 75%,
+    var(--brand-orange) 100%
   );
 }

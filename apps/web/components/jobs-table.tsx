@@ -1,12 +1,21 @@
 'use client';
 
 // Expandable jobs table — Per Scholas brand redesign.
-// White surface, gray hairlines, restrained color use (only Royal/Ocean/
-// Yellow/Cloud via the ConfidenceBadge). Click a row to reveal the full
-// score breakdown. Permissive row shape since Supabase typegen isn't wired.
+//
+// Refactored from a grid-of-divs layout to a real <table> element so the
+// row content can scroll horizontally on narrow viewports without crushing
+// the title column. The table sits inside an `overflow-x-auto` wrapper with
+// a `min-w-[840px]` floor so columns stay legible at any width.
+//
+// Click a row to reveal the full score breakdown — the detail panel is
+// rendered as a second <tr> with colspan covering the full row width. We
+// keep the same Per Scholas chrome: white surface, gray hairlines,
+// restrained color use (Royal/Ocean/Yellow/Gray via ConfidenceBadge).
 
 import { useState } from 'react';
 import { ConfidenceBadge, type Confidence } from './confidence-badge';
+import { Card } from './ui/card';
+import { Badge } from './ui/badge';
 
 interface JoinedJob {
   id?: string;
@@ -60,47 +69,59 @@ interface JobsTableProps {
 export function JobsTable({ scores }: JobsTableProps) {
   if (scores.length === 0) {
     return (
-      <div className="bg-white border border-gray-200 rounded-md p-12 text-center shadow-sm">
-        <div className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-2">
-          No results
+      <Card>
+        <div className="p-12 text-center">
+          <div className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-2">
+            No results
+          </div>
+          <p className="text-sm text-gray-600 max-w-md mx-auto">
+            No scored jobs for this view yet. The next scheduled fetch runs Mon/Wed/Fri at 9am ET,
+            or an admin can trigger a manual fetch from the Admin panel.
+          </p>
         </div>
-        <p className="text-sm text-gray-600 max-w-md mx-auto">
-          No scored jobs for this view yet. The next scheduled fetch runs Mon/Wed/Fri at 9am ET,
-          or an admin can trigger a manual fetch from the Admin panel.
-        </p>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden">
-      <div className="border-b border-gray-200 px-5 py-3.5 flex items-center justify-between">
+    <Card>
+      <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="text-sm font-semibold text-night">
           Jobs <span className="text-gray-500 font-normal ml-1">· {scores.length} scored</span>
         </div>
-        <div className="text-xs text-gray-400">
+        <div className="text-xs text-gray-400 hidden sm:block">
           Click a row to see the score breakdown.
         </div>
       </div>
 
-      <div
-        role="row"
-        className="grid grid-cols-[80px_minmax(280px,2fr)_minmax(180px,1.2fr)_minmax(140px,1fr)_120px_70px] gap-3 px-5 py-2.5 border-b border-gray-200 bg-gray-50 text-[11px] font-semibold uppercase tracking-wider text-gray-500"
-      >
-        <div>Conf</div>
-        <div>Title</div>
-        <div>Employer</div>
-        <div>Location</div>
-        <div>Posted</div>
-        <div className="text-right">Score</div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[840px] border-collapse">
+          <colgroup>
+            <col style={{ width: '80px' }} />
+            <col />
+            <col style={{ width: '220px' }} />
+            <col style={{ width: '160px' }} />
+            <col style={{ width: '120px' }} />
+            <col style={{ width: '70px' }} />
+          </colgroup>
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+              <th className="px-6 py-2.5 text-left font-semibold">Conf</th>
+              <th className="px-3 py-2.5 text-left font-semibold">Title</th>
+              <th className="px-3 py-2.5 text-left font-semibold">Employer</th>
+              <th className="px-3 py-2.5 text-left font-semibold">Location</th>
+              <th className="px-3 py-2.5 text-left font-semibold">Posted</th>
+              <th className="px-6 py-2.5 text-right font-semibold">Score</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {scores.map(row => (
+              <JobRow key={row.id} row={row} />
+            ))}
+          </tbody>
+        </table>
       </div>
-
-      <ul role="rowgroup" className="divide-y divide-gray-100">
-        {scores.map(row => (
-          <JobRow key={row.id} row={row} />
-        ))}
-      </ul>
-    </div>
+    </Card>
   );
 }
 
@@ -112,58 +133,68 @@ function JobRow({ row }: { row: ScoreRow }) {
   const datePosted = formatDate(job.date_posted);
 
   return (
-    <li role="row">
-      <button
-        type="button"
+    <>
+      <tr
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
-        className="w-full grid grid-cols-[80px_minmax(280px,2fr)_minmax(180px,1.2fr)_minmax(140px,1fr)_120px_70px] gap-3 px-5 py-3 text-left hover:bg-gray-50 transition-colors"
+        className="hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
       >
-        <div className="flex items-center">
+        <td className="px-6 py-3 align-top">
           <ConfidenceBadge value={row.confidence} />
-        </div>
-        <div className="min-w-0">
+        </td>
+        <td className="px-3 py-3 align-top min-w-0">
           <div className="text-sm font-medium text-night truncate">{job.title ?? '—'}</div>
           {row.title_tier && (
             <div className="text-xs text-gray-500 mt-0.5">
               <span className="font-medium text-navy">Tier {row.title_tier}</span>
-              {row.title_matched ? <span className="text-gray-400"> · {row.title_matched}</span> : null}
+              {row.title_matched ? (
+                <span className="text-gray-400"> · {row.title_matched}</span>
+              ) : null}
               {row.tags?.length ? (
                 <span className="ml-2 inline-flex flex-wrap gap-1">
                   {row.tags.map(t => (
-                    <span key={t} className="inline-block bg-cloud text-night px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide rounded-sm">
+                    <Badge key={t} tone="gray" variant="soft" size="sm">
                       {t}
-                    </span>
+                    </Badge>
                   ))}
                 </span>
               ) : null}
             </div>
           )}
-        </div>
-        <div className="text-sm text-gray-700 truncate">
-          {job.organization ?? '—'}
-          {row.employer_hit && (
-            <span className="ml-1.5 text-royal" title="On employer watchlist">
-              ★
-            </span>
-          )}
-        </div>
-        <div className="text-sm text-gray-600 truncate">{location}</div>
-        <div className="text-xs text-gray-500">{datePosted}</div>
-        <div className="text-sm font-semibold text-night text-right tabular-nums">
+        </td>
+        <td className="px-3 py-3 align-top text-sm text-gray-700 truncate max-w-0">
+          <span className="truncate inline-block max-w-full align-bottom">
+            {job.organization ?? '—'}
+            {row.employer_hit && (
+              <span className="ml-1.5 text-royal" title="On employer watchlist">
+                ★
+              </span>
+            )}
+          </span>
+        </td>
+        <td className="px-3 py-3 align-top text-sm text-gray-600 truncate max-w-0">
+          <span className="truncate inline-block max-w-full align-bottom">{location}</span>
+        </td>
+        <td className="px-3 py-3 align-top text-xs text-gray-500">{datePosted}</td>
+        <td className="px-6 py-3 align-top text-sm font-semibold text-night text-right tabular-nums">
           {row.score}
-        </div>
-      </button>
-
-      {open && <JobDetail row={row} job={job} />}
-    </li>
+        </td>
+      </tr>
+      {open && (
+        <tr>
+          <td colSpan={6} className="p-0">
+            <JobDetail row={row} job={job} />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 function JobDetail({ row, job }: { row: ScoreRow; job: JoinedJob }) {
   return (
-    <div className="px-5 py-5 bg-gray-50 border-t border-gray-200">
+    <div className="px-6 py-5 bg-gray-50 border-t border-gray-200">
       {row.confidence === 'REJECT' && row.rejection_reason && (
         <div className="mb-5 bg-white border border-orange/30 border-l-4 border-l-orange rounded-sm p-4">
           <div className="text-xs font-semibold uppercase tracking-wider text-orange mb-1">
@@ -178,7 +209,7 @@ function JobDetail({ row, job }: { row: ScoreRow; job: JoinedJob }) {
           <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
             Score breakdown
           </div>
-          <ul className="text-sm space-y-1.5">
+          <ul className="text-sm space-y-2">
             <ScoreLine label={`Title (Tier ${row.title_tier ?? '—'})`} value={row.title_score} />
             <ScoreLine label="Core skills" value={row.core_score} />
             <ScoreLine label="Specialized" value={row.specialized_score} />
@@ -189,7 +220,7 @@ function JobDetail({ row, job }: { row: ScoreRow; job: JoinedJob }) {
             {row.experience_penalty > 0 && (
               <ScoreLine label="Experience penalty" value={-row.experience_penalty} negative />
             )}
-            <li className="flex justify-between border-t border-gray-300 pt-2 mt-1.5 text-night font-semibold">
+            <li className="flex justify-between border-t border-gray-300 pt-2 mt-2 text-night font-semibold">
               <span>Total</span>
               <span className="tabular-nums">{row.score}</span>
             </li>
@@ -197,25 +228,29 @@ function JobDetail({ row, job }: { row: ScoreRow; job: JoinedJob }) {
 
           {row.distance_miles != null && (
             <div className="mt-4 text-xs text-gray-500">
-              Distance: <span className="text-gray-800 font-medium">{row.distance_miles.toFixed(1)} mi</span>
+              Distance:{' '}
+              <span className="text-gray-800 font-medium">
+                {row.distance_miles.toFixed(1)} mi
+              </span>
             </div>
           )}
         </div>
 
         <div className="space-y-4">
-          <ChipBlock label="Core matched" items={row.core_matched} accent="royal" />
-          <ChipBlock label="Specialized" items={row.specialized_matched} accent="ocean" />
-          <ChipBlock label="Bonus" items={row.bonus_matched} accent="cloud" />
-          <ChipBlock label="Industry" items={row.industry_matched} accent="yellow" />
-          <ChipBlock label="Certifications" items={row.certs_matched} accent="navy" />
+          <ChipBlock label="Core matched" items={row.core_matched} tone="royal" />
+          <ChipBlock label="Specialized" items={row.specialized_matched} tone="ocean" />
+          <ChipBlock label="Bonus" items={row.bonus_matched} tone="gray" />
+          <ChipBlock label="Industry" items={row.industry_matched} tone="yellow" />
+          <ChipBlock label="Certifications" items={row.certs_matched} tone="navy" />
         </div>
       </div>
 
-      <div className="mt-5 pt-4 border-t border-gray-200 flex items-center justify-between gap-4">
+      <div className="mt-5 pt-4 border-t border-gray-200 flex items-center justify-between gap-4 flex-wrap">
         <div className="text-xs text-gray-500">
           {job.ai_experience_level ? (
             <>
-              Exp level: <span className="text-gray-700 font-medium">{job.ai_experience_level}</span>
+              Exp level:{' '}
+              <span className="text-gray-700 font-medium">{job.ai_experience_level}</span>
             </>
           ) : null}
           {job.ai_salary_min || job.ai_salary_max ? (
@@ -228,7 +263,7 @@ function JobDetail({ row, job }: { row: ScoreRow; job: JoinedJob }) {
             href={job.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs font-semibold uppercase tracking-wider text-royal hover:text-navy"
+            className="text-xs font-semibold uppercase tracking-wider text-royal hover:text-navy transition-colors duration-150"
           >
             View posting →
           </a>
@@ -239,7 +274,15 @@ function JobDetail({ row, job }: { row: ScoreRow; job: JoinedJob }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function ScoreLine({ label, value, negative = false }: { label: string; value: number; negative?: boolean }) {
+function ScoreLine({
+  label,
+  value,
+  negative = false,
+}: {
+  label: string;
+  value: number;
+  negative?: boolean;
+}) {
   return (
     <li className="flex justify-between text-gray-700">
       <span>{label}</span>
@@ -250,15 +293,17 @@ function ScoreLine({ label, value, negative = false }: { label: string; value: n
   );
 }
 
-const CHIP_STYLES: Record<string, string> = {
-  royal:  'bg-royal/10 text-royal border-royal/20',
-  ocean:  'bg-ocean/10 text-ocean border-ocean/20',
-  yellow: 'bg-yellow/15 text-night border-yellow/30',
-  navy:   'bg-navy/10 text-navy border-navy/20',
-  cloud:  'bg-cloud text-gray-700 border-gray-200',
-};
+type ChipTone = 'royal' | 'ocean' | 'yellow' | 'navy' | 'gray';
 
-function ChipBlock({ label, items, accent }: { label: string; items: string[]; accent: string }) {
+function ChipBlock({
+  label,
+  items,
+  tone,
+}: {
+  label: string;
+  items: string[];
+  tone: ChipTone;
+}) {
   return (
     <div>
       <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
@@ -268,12 +313,9 @@ function ChipBlock({ label, items, accent }: { label: string; items: string[]; a
       {items?.length ? (
         <div className="flex flex-wrap gap-1.5">
           {items.map(item => (
-            <span
-              key={item}
-              className={`inline-block border px-2 py-0.5 text-xs rounded-sm ${CHIP_STYLES[accent] ?? CHIP_STYLES.cloud}`}
-            >
+            <Badge key={item} tone={tone} variant="soft" size="sm">
               {item}
-            </span>
+            </Badge>
           ))}
         </div>
       ) : (

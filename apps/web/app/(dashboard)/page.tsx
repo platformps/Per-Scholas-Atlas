@@ -27,6 +27,9 @@ import {
   ConfidenceDistributionPanel,
 } from '@/components/insights-panels';
 import { CampusRolePicker, type PairOption } from '@/components/campus-role-picker';
+import { AppShell } from '@/components/layout/app-shell';
+import { Header, NavLinks } from '@/components/layout/header';
+import { Footer } from '@/components/layout/footer';
 
 const WINDOW_DAYS = 30;
 
@@ -190,113 +193,87 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     });
   const topEmployers = Object.entries(empFreq).sort((a, b) => b[1] - a[1]).slice(0, 8);
 
+  const subtitle =
+    pairOptions.length > 1 ? (
+      <CampusRolePicker
+        pairs={pairOptions}
+        activeCampusId={activeCampusId}
+        activeRoleId={activeRoleId}
+      />
+    ) : (
+      <span className="text-sm text-gray-500">
+        {activeRole?.name ?? 'Role'} · {activeCampus?.name ?? 'Campus'}
+      </span>
+    );
+
+  const meta = (
+    <>
+      {activeCampus?.address ?? ''}
+      {activeCampus?.default_radius_miles
+        ? ` · ${activeCampus.default_radius_miles}mi radius`
+        : ''}
+      {' · '}
+      {latestRun
+        ? `Last fetch ${new Date((latestRun as any).completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${(latestRun as any).jobs_returned} jobs`
+        : 'No fetches yet — cron runs Mon/Wed/Fri 9am ET'}
+    </>
+  );
+
   return (
-    <main className="min-h-screen bg-white">
-      <div className="brand-accent-bar" aria-hidden />
-
-      <header className="border-b border-gray-200 bg-white">
-        <div className="max-w-[1600px] mx-auto px-6 py-5 flex items-center justify-between gap-6">
-          <div className="flex items-center gap-5 min-w-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/per-scholas-logo.png"
-              alt="Per Scholas"
-              className="h-10 w-auto shrink-0"
-            />
-            <div className="h-10 w-px bg-gray-200 shrink-0" aria-hidden />
-            <div className="min-w-0">
-              <div className="flex items-baseline gap-3 flex-wrap">
-                <h1 className="text-2xl font-bold tracking-tight text-night leading-none">Atlas</h1>
-                {pairOptions.length > 1 ? (
-                  <CampusRolePicker
-                    pairs={pairOptions}
-                    activeCampusId={activeCampusId}
-                    activeRoleId={activeRoleId}
-                  />
-                ) : (
-                  <span className="text-sm text-gray-500">
-                    {activeRole?.name ?? 'Role'} · {activeCampus?.name ?? 'Campus'}
-                  </span>
-                )}
-              </div>
-              <div className="text-xs text-gray-500 mt-1.5">
-                {activeCampus?.address ?? ''}
-                {activeCampus?.default_radius_miles
-                  ? ` · ${activeCampus.default_radius_miles}mi radius`
-                  : ''}
-                {' · '}
-                {latestRun
-                  ? `Last fetch ${new Date((latestRun as any).completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${(latestRun as any).jobs_returned} jobs`
-                  : 'No fetches yet — cron runs Mon/Wed/Fri 9am ET'}
-              </div>
-            </div>
-          </div>
-          <nav className="flex items-center gap-5 text-sm shrink-0">
-            <span className="hidden sm:inline text-gray-600">{user.email}</span>
-            {user.role === 'admin' && (
-              <a
-                href="/admin"
-                className="text-royal hover:text-navy font-semibold uppercase tracking-wider text-xs"
-              >
-                Admin
-              </a>
-            )}
-            <a
-              href="/auth/signout"
-              className="text-gray-500 hover:text-gray-800 uppercase tracking-wider text-xs"
-            >
-              Sign out
-            </a>
-          </nav>
-        </div>
-      </header>
-
-      <div className="max-w-[1600px] mx-auto px-6 py-8 space-y-6">
-        {/* 1. Pipeline overview — 30-day cumulative stats (the headline) */}
-        <PipelineStats
-          windowDays={WINDOW_DAYS}
-          totalSeen={totalSeen}
-          stillActive={stillActive}
-          qualifying={qualifying}
-          counts={counts}
+    <AppShell
+      header={
+        <Header
+          subtitle={subtitle}
+          meta={meta}
+          nav={
+            <NavLinks email={user.email} showAdminLink={user.role === 'admin'} />
+          }
         />
-
-        {/* 2. Detection trend — per-fetch confidence breakdown */}
-        <FetchTrend data={trend} windowDays={WINDOW_DAYS} />
-
-        {/* 3. Why-filtered + Confidence distribution */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <RejectionBreakdown reasons={rejectionReasons} windowDays={WINDOW_DAYS} />
-          <ConfidenceDistributionPanel
-            counts={counts}
-            total={totalSeen}
-            scores={latestPerJob}
-          />
-        </div>
-
-        {/* 4. Top Skills + Top Employers */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <TopSkillsPanel skills={topSkills} />
-          <TopEmployersPanel employers={topEmployers} />
-        </div>
-
-        {/* 5. Jobs table — 30-day deduped */}
-        <JobsTable scores={tableScores as any} />
-
-        {/* Footer */}
-        <footer className="pt-8 border-t border-gray-200 text-xs text-gray-500 leading-relaxed">
-          <div className="mb-2 font-semibold uppercase tracking-wider text-gray-700">Data source</div>
+      }
+      footer={
+        <Footer>
+          <div className="mb-2 font-semibold uppercase tracking-wider text-gray-700">
+            Data source
+          </div>
           <p>
-            Pipeline view shows the most recent score per unique job seen in the last {WINDOW_DAYS} days,
-            scored against the active CFT taxonomy. Jobs sourced from the Fantastic Jobs Active Jobs DB
-            (rolling 7-day ATS window). Fetch cadence: Mon/Wed/Fri at 9am ET.
-            Admins can trigger a manual fetch from the Admin panel.
+            Pipeline view shows the most recent score per unique job seen in the last{' '}
+            {WINDOW_DAYS} days, scored against the active CFT taxonomy. Jobs sourced from the
+            Fantastic Jobs Active Jobs DB (rolling 7-day ATS window). Fetch cadence:
+            Mon/Wed/Fri at 9am ET. Admins can trigger a manual fetch from the Admin panel.
           </p>
-          <p className="mt-3 text-gray-400">
-            Atlas is a Per Scholas internal tool · v1 · Atlanta · Critical Facilities Technician
-          </p>
-        </footer>
+        </Footer>
+      }
+    >
+      {/* 1. Pipeline overview — 30-day cumulative stats (the headline) */}
+      <PipelineStats
+        windowDays={WINDOW_DAYS}
+        totalSeen={totalSeen}
+        stillActive={stillActive}
+        qualifying={qualifying}
+        counts={counts}
+      />
+
+      {/* 2. Detection trend — per-fetch confidence breakdown */}
+      <FetchTrend data={trend} windowDays={WINDOW_DAYS} />
+
+      {/* 3. Why-filtered + Confidence distribution */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <RejectionBreakdown reasons={rejectionReasons} windowDays={WINDOW_DAYS} />
+        <ConfidenceDistributionPanel
+          counts={counts}
+          total={totalSeen}
+          scores={latestPerJob}
+        />
       </div>
-    </main>
+
+      {/* 4. Top Skills + Top Employers */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <TopSkillsPanel skills={topSkills} />
+        <TopEmployersPanel employers={topEmployers} />
+      </div>
+
+      {/* 5. Jobs table — 30-day deduped */}
+      <JobsTable scores={tableScores as any} />
+    </AppShell>
   );
 }

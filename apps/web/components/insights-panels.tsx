@@ -1,12 +1,9 @@
-// Three insight panels for the dashboard:
-//   • TopSkillsPanel
-//   • TopEmployersPanel
-//   • ConfidenceDistributionPanel
-//
-// Light/airy treatment per Per Scholas brand book. Bars use the brand's
-// blue spectrum (royal/ocean/yellow) so the visual language ties back to
-// the confidence badges. Pure rendering — server component supplies
-// pre-aggregated data.
+// Three insight panels for the dashboard — Top Skills, Top Employers,
+// Confidence Distribution. All three use the shared <Card> primitive
+// and the shared <EmptyState> for empty cases.
+
+import { Card } from './ui/card';
+import { EmptyState } from './ui/empty-state';
 
 interface PanelShellProps {
   label: string;
@@ -16,21 +13,21 @@ interface PanelShellProps {
 
 function PanelShell({ label, hint, children }: PanelShellProps) {
   return (
-    <div className="bg-white border border-gray-200 rounded-md p-5 flex flex-col shadow-sm">
-      <div className="flex items-baseline justify-between mb-4">
-        <div className="text-xs font-medium uppercase tracking-wider text-gray-500">
-          {label}
+    <Card>
+      <div className="p-6 flex flex-col h-full">
+        <div className="flex items-baseline justify-between mb-4">
+          <div className="text-xs font-medium uppercase tracking-wider text-gray-500">
+            {label}
+          </div>
+          {hint && <div className="text-xs text-gray-400">{hint}</div>}
         </div>
-        {hint && <div className="text-xs text-gray-400">{hint}</div>}
+        <div className="flex-1">{children}</div>
       </div>
-      <div className="flex-1">{children}</div>
-    </div>
+    </Card>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Top skills
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Top skills ──────────────────────────────────────────────────────────────
 interface TopSkillsPanelProps {
   skills: Array<[string, number]>;
 }
@@ -40,7 +37,7 @@ export function TopSkillsPanel({ skills }: TopSkillsPanelProps) {
   if (!head) {
     return (
       <PanelShell label="Top Skills">
-        <EmptyState text="No matched skills yet." />
+        <EmptyState message="No matched skills yet." />
       </PanelShell>
     );
   }
@@ -64,9 +61,7 @@ export function TopSkillsPanel({ skills }: TopSkillsPanelProps) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Top employers
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Top employers ──────────────────────────────────────────────────────────
 interface TopEmployersPanelProps {
   employers: Array<[string, number]>;
 }
@@ -75,7 +70,7 @@ export function TopEmployersPanel({ employers }: TopEmployersPanelProps) {
   if (employers.length === 0) {
     return (
       <PanelShell label="Top Employers">
-        <EmptyState text="No qualifying jobs yet." />
+        <EmptyState message="No qualifying jobs yet." />
       </PanelShell>
     );
   }
@@ -93,9 +88,7 @@ export function TopEmployersPanel({ employers }: TopEmployersPanelProps) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Confidence distribution
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Confidence distribution ────────────────────────────────────────────────
 interface ConfidenceDistributionPanelProps {
   counts: { HIGH: number; MEDIUM: number; LOW: number; REJECT: number };
   total: number;
@@ -106,24 +99,33 @@ export function ConfidenceDistributionPanel({
   counts,
   total,
 }: ConfidenceDistributionPanelProps) {
-  const buckets: Array<{ key: keyof typeof counts; label: string; bar: string; dot: string; text: string }> = [
-    { key: 'HIGH',   label: 'High',   bar: 'bg-royal',  dot: 'bg-royal',  text: 'text-royal' },
-    { key: 'MEDIUM', label: 'Medium', bar: 'bg-ocean',  dot: 'bg-ocean',  text: 'text-ocean' },
-    { key: 'LOW',    label: 'Low',    bar: 'bg-yellow', dot: 'bg-yellow', text: 'text-night' },
-    { key: 'REJECT', label: 'Reject', bar: 'bg-cloud',  dot: 'bg-cloud',  text: 'text-gray-500' },
+  const buckets: Array<{
+    key: keyof typeof counts;
+    label: string;
+    bar: string;
+    dot: string;
+  }> = [
+    { key: 'HIGH',   label: 'High',   bar: 'bg-royal',  dot: 'bg-royal'  },
+    { key: 'MEDIUM', label: 'Medium', bar: 'bg-ocean',  dot: 'bg-ocean'  },
+    { key: 'LOW',    label: 'Low',    bar: 'bg-yellow', dot: 'bg-yellow' },
+    { key: 'REJECT', label: 'Reject', bar: 'bg-gray-300', dot: 'bg-gray-300' },
   ];
 
   if (total === 0) {
     return (
       <PanelShell label="Confidence Distribution">
-        <EmptyState text="No scores yet." />
+        <EmptyState message="No scores yet." />
       </PanelShell>
     );
   }
 
   return (
     <PanelShell label="Confidence Distribution" hint={`${total} scored`}>
-      <div className="flex h-2 rounded-sm overflow-hidden mb-4 bg-gray-100" role="img" aria-label="Confidence distribution">
+      <div
+        className="flex h-2 rounded-sm overflow-hidden mb-4 bg-gray-100"
+        role="img"
+        aria-label="Confidence distribution"
+      >
         {buckets.map(b => {
           const pct = (counts[b.key] / total) * 100;
           if (pct === 0) return null;
@@ -154,12 +156,5 @@ export function ConfidenceDistributionPanel({
         ))}
       </ul>
     </PanelShell>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="text-sm text-gray-400 py-6 text-center">{text}</div>
   );
 }

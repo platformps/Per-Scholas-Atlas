@@ -20,6 +20,10 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { Card } from './ui/card';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
+import { TextField, Checkbox, FieldWrapper } from './ui/field';
 
 interface Category {
   is_healthcare: boolean;
@@ -151,16 +155,16 @@ export function WatchlistEditor({
 
   // ─── render ─────────────────────────────────────────────────────────
   return (
-    <div className="bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden">
-      <header className="flex items-center justify-between gap-4 px-5 py-3.5 border-b border-gray-200 bg-gray-50">
+    <Card>
+      <header className="flex items-center justify-between gap-4 px-6 py-4 border-b border-gray-200 bg-gray-50">
         <button
           type="button"
           onClick={() => setOpen(o => !o)}
           aria-expanded={open}
-          className="flex items-center gap-3 text-left flex-1 min-w-0 hover:opacity-80 transition-opacity"
+          className="flex items-center gap-3 text-left flex-1 min-w-0 hover:bg-gray-100 -mx-2 px-2 py-1 rounded-sm transition-colors duration-150"
         >
           <span
-            className="text-gray-400 text-sm transition-transform"
+            className="text-gray-400 text-sm transition-transform duration-150"
             style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}
             aria-hidden
           >
@@ -179,7 +183,7 @@ export function WatchlistEditor({
       </header>
 
       {open && (
-        <div className="p-5">
+        <div className="p-6">
           <p className="text-xs text-gray-500 mb-4 leading-relaxed">
             Industry-grouped list of CFT-relevant employers. A score gets +{weightPerMatch} when
             the job's organization substring-matches any entry below. Industries flagged as{' '}
@@ -206,19 +210,15 @@ export function WatchlistEditor({
           <AddIndustryForm onAdd={addIndustry} disabled={pending} />
 
           <div className="flex items-center gap-3 mt-5 pt-4 border-t border-gray-100">
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="md"
               onClick={save}
-              disabled={pending || !dirty}
-              className={[
-                'px-4 py-2 text-sm font-semibold rounded-sm transition-colors',
-                pending || !dirty
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-royal text-white hover:bg-navy',
-              ].join(' ')}
+              disabled={!dirty}
+              loading={pending}
             >
-              {pending ? 'Saving…' : 'Save watchlist'}
-            </button>
+              Save watchlist
+            </Button>
             {dirty && !pending && (
               <button
                 type="button"
@@ -234,7 +234,7 @@ export function WatchlistEditor({
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -273,11 +273,11 @@ function IndustryBlock({
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-gray-100 transition-colors duration-150"
       >
         <span className="flex items-center gap-2 min-w-0">
           <span
-            className="text-gray-400 text-xs transition-transform"
+            className="text-gray-400 text-xs transition-transform duration-150"
             style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}
             aria-hidden
           >
@@ -285,9 +285,7 @@ function IndustryBlock({
           </span>
           <span className="text-sm font-semibold text-night font-mono truncate">{name}</span>
           {category.is_healthcare && (
-            <span className="inline-block bg-yellow/20 text-night text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-sm shrink-0">
-              healthcare
-            </span>
+            <Badge tone="yellow" variant="soft" size="sm">healthcare</Badge>
           )}
         </span>
         <span className="text-xs text-gray-500 shrink-0">
@@ -296,19 +294,15 @@ function IndustryBlock({
       </button>
 
       {open && (
-        <div className="px-3 pb-3 pt-0 space-y-2.5">
+        <div className="px-3 pb-3 pt-0 space-y-3">
           {/* Healthcare toggle + remove-industry control */}
           <div className="flex items-center justify-between text-xs gap-2">
-            <label className="inline-flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={category.is_healthcare}
-                onChange={onToggleHealthcare}
-                disabled={disabled}
-                className="rounded-sm"
-              />
-              <span className="text-gray-700">Counts as healthcare context (§A4 Tier D gate)</span>
-            </label>
+            <Checkbox
+              checked={category.is_healthcare}
+              onChange={onToggleHealthcare}
+              disabled={disabled}
+              label="Counts as healthcare context (§A4 Tier D gate)"
+            />
             <button
               type="button"
               onClick={() => {
@@ -337,7 +331,7 @@ function IndustryBlock({
                     onClick={() => onRemoveEmployer(emp)}
                     disabled={disabled}
                     aria-label={`Remove ${emp}`}
-                    className="text-gray-400 hover:text-orange disabled:opacity-30 px-1"
+                    className="text-gray-400 hover:text-orange disabled:opacity-30 px-1 transition-colors duration-150"
                   >
                     ×
                   </button>
@@ -351,7 +345,7 @@ function IndustryBlock({
 
           {/* Add employer */}
           <div className="flex gap-2">
-            <input
+            <TextField
               type="text"
               value={input}
               placeholder="Add employer (lowercased on save)…"
@@ -363,16 +357,16 @@ function IndustryBlock({
                 }
               }}
               disabled={disabled}
-              className="flex-1 border border-gray-300 rounded-sm px-2 py-1 text-xs bg-white focus:outline-none focus:border-royal"
+              className="flex-1"
             />
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={commit}
               disabled={disabled || !input.trim()}
-              className="px-3 py-1 text-xs font-semibold border border-gray-300 text-gray-700 rounded-sm hover:bg-white disabled:opacity-40"
             >
               Add
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -414,7 +408,7 @@ function AddIndustryForm({
         type="button"
         onClick={() => setOpen(true)}
         disabled={disabled}
-        className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-royal hover:text-navy disabled:opacity-50"
+        className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-royal hover:text-navy disabled:opacity-50 transition-colors duration-150"
       >
         + Add industry
       </button>
@@ -422,12 +416,11 @@ function AddIndustryForm({
   }
 
   return (
-    <div className="mt-3 border border-royal/30 rounded-sm bg-royal/5 p-3">
-      <div className="text-xs font-semibold text-night mb-2.5">New industry</div>
-      <div className="flex flex-wrap items-end gap-2.5">
-        <label className="flex flex-col gap-1 text-xs flex-1 min-w-[200px]">
-          <span className="text-gray-600">Name (lowercase, underscores)</span>
-          <input
+    <div className="mt-3 border border-royal/30 rounded-sm bg-royal/5 p-4">
+      <div className="text-xs font-semibold text-night mb-3">New industry</div>
+      <div className="flex flex-wrap items-end gap-3">
+        <FieldWrapper label="Name (lowercase, underscores)" className="flex-1 min-w-[200px]">
+          <TextField
             type="text"
             value={name}
             placeholder="e.g. ai_infrastructure"
@@ -439,27 +432,24 @@ function AddIndustryForm({
               }
             }}
             disabled={disabled}
-            className="border border-gray-300 rounded-sm px-2 py-1 bg-white focus:outline-none focus:border-royal"
           />
-        </label>
-        <label className="inline-flex items-center gap-2 text-xs text-gray-700 self-end pb-1.5">
-          <input
-            type="checkbox"
+        </FieldWrapper>
+        <div className="self-end pb-2">
+          <Checkbox
             checked={isHealthcare}
             onChange={e => setIsHealthcare(e.target.checked)}
             disabled={disabled}
-            className="rounded-sm"
+            label="Healthcare"
           />
-          Healthcare
-        </label>
-        <button
-          type="button"
+        </div>
+        <Button
+          variant="primary"
+          size="sm"
           onClick={commit}
           disabled={disabled || !name.trim()}
-          className="px-3 py-1.5 text-xs font-semibold bg-royal text-white rounded-sm hover:bg-navy disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
         >
           Add
-        </button>
+        </Button>
         <button
           type="button"
           onClick={() => {

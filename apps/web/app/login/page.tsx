@@ -6,6 +6,8 @@
 // brand book's "supergraphic" guidance.
 
 import { createClient } from '@/lib/supabase-browser';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 export default function LoginPage() {
   const supabase = createClient();
@@ -43,26 +45,29 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-md p-8 shadow-sm">
-            <h2 className="text-lg font-semibold text-night mb-1">Sign in</h2>
-            <p className="text-sm text-gray-600 mb-6">
-              Use your Google or Per Scholas Workspace account to continue.
-            </p>
+          <Card>
+            <div className="p-8">
+              <h2 className="text-lg font-semibold text-night mb-1">Sign in</h2>
+              <p className="text-sm text-gray-600 mb-6">
+                Use your Google or Per Scholas Workspace account to continue.
+              </p>
 
-            <button
-              type="button"
-              onClick={signInWithGoogle}
-              className="w-full inline-flex items-center justify-center gap-3 bg-royal text-white hover:bg-navy transition-colors font-semibold py-2.5 px-4 rounded-sm text-sm"
-            >
-              <GoogleMark />
-              Continue with Google
-            </button>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={signInWithGoogle}
+                className="w-full"
+              >
+                <GoogleMark />
+                Continue with Google
+              </Button>
 
-            <div className="mt-6 pt-6 border-t border-gray-100 text-xs text-gray-500">
-              Open access for any Google account. Admin role is granted to authorized
-              Per Scholas staff only.
+              <div className="mt-6 pt-6 border-t border-gray-100 text-xs text-gray-500">
+                Open access for any Google account. Admin role is granted to authorized
+                Per Scholas staff only.
+              </div>
             </div>
-          </div>
+          </Card>
 
           <div className="mt-8 text-center text-xs text-gray-400">
             v1 · Atlas pilot · Atlanta · Critical Facilities Technician
