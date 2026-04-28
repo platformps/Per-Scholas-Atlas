@@ -126,6 +126,13 @@ export default async function FAQPage() {
           opportunity is — and where it isn't — before making cohort, partnership, or
           curriculum decisions.
         </p>
+
+        <ArchitectureDiagram />
+        <p className="text-xs text-gray-500 -mt-2">
+          <strong>Inputs</strong> feed the <strong>pipeline</strong> three times a week;
+          everything lands in <strong>Postgres</strong> and surfaces to the user in four
+          dashboard modes.
+        </p>
         <p>
           Three times a week (Mon / Wed / Fri at 9am ET), Atlas pulls fresh job postings
           from a Job API for each active campus × role pair. Each posting is scored against
@@ -573,6 +580,221 @@ export default async function FAQPage() {
         </p>
       </FaqSection>
     </AppShell>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// System architecture diagram for Q1.
+//
+// Three columns: Inputs → Atlas Pipeline → Dashboard, plus a Postgres callout
+// underneath the pipeline (everything is persisted to Supabase Postgres).
+// Pure SVG with a viewBox so it scales fluidly. On narrow viewports (<sm)
+// the diagram still renders horizontally — it's clearer with the left-to-
+// right flow preserved, and the SVG just shrinks. The figure caption under
+// the diagram (in the parent component) gives the same info in prose for
+// screen readers, and the SVG itself carries role="img" + aria-label so
+// it's announced as a single image.
+function ArchitectureDiagram() {
+  return (
+    <div className="my-4 -mx-1 sm:mx-0 overflow-x-auto">
+      <svg
+        viewBox="0 0 880 340"
+        role="img"
+        aria-label="Atlas system architecture: inputs (Job API, taxonomy, campuses and roles) feed a pipeline (fetch, score, persist, reconcile) running on a Mon/Wed/Fri schedule, with a Postgres database in the middle and a dashboard on the right exposing four modes."
+        className="w-full h-auto min-w-[640px] sm:min-w-0"
+      >
+        <defs>
+          <marker
+            id="atlas-arrow"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="6"
+            markerHeight="6"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
+          </marker>
+        </defs>
+
+        {/* ──────── Column 1: Inputs ──────── */}
+        <g>
+          <text
+            x="20"
+            y="34"
+            className="fill-gray-500"
+            style={{ font: '600 11px var(--font-roboto, sans-serif)', letterSpacing: '0.08em' }}
+          >
+            INPUTS
+          </text>
+          <DiagramBox x={20} y={50} w={220} h={62} title="Job API" subtitle="Active Jobs DB · 7-day window" tone="cloud" />
+          <DiagramBox x={20} y={130} w={220} h={62} title="Taxonomy" subtitle="cft.json · v1.1.3 (editable)" tone="cloud" />
+          <DiagramBox x={20} y={210} w={220} h={62} title="Campuses × Roles" subtitle="Active pairs · commute radius" tone="cloud" />
+        </g>
+
+        {/* Arrows from inputs → pipeline */}
+        <path d="M 240 81 L 290 95" stroke="#94a3b8" strokeWidth="1.5" fill="none" markerEnd="url(#atlas-arrow)" />
+        <path d="M 240 161 L 290 161" stroke="#94a3b8" strokeWidth="1.5" fill="none" markerEnd="url(#atlas-arrow)" />
+        <path d="M 240 241 L 290 227" stroke="#94a3b8" strokeWidth="1.5" fill="none" markerEnd="url(#atlas-arrow)" />
+
+        {/* ──────── Column 2: Atlas Pipeline ──────── */}
+        <g>
+          <text
+            x="300"
+            y="34"
+            className="fill-royal"
+            style={{ font: '600 11px var(--font-roboto, sans-serif)', letterSpacing: '0.08em' }}
+          >
+            ATLAS PIPELINE · MON/WED/FRI 9 AM ET
+          </text>
+          <rect x="300" y="50" width="280" height="222" rx="6" fill="#0079C0" fillOpacity="0.04" stroke="#0079C0" strokeOpacity="0.25" strokeWidth="1" />
+          <DiagramStep x={314} y={66} w={252} num="1" label="Fetch jobs" subtitle="per active campus × role" />
+          <DiagramStep x={314} y={114} w={252} num="2" label="Score" subtitle="vs active taxonomy" />
+          <DiagramStep x={314} y={162} w={252} num="3" label="Persist" subtitle="immutable score rows" />
+          <DiagramStep x={314} y={210} w={252} num="4" label="Reconcile" subtitle="mark stale jobs inactive" />
+        </g>
+
+        {/* Pipeline → DB (down arrow) */}
+        <path d="M 440 280 L 440 300" stroke="#94a3b8" strokeWidth="1.5" fill="none" markerEnd="url(#atlas-arrow)" />
+
+        {/* Postgres callout under pipeline */}
+        <g transform="translate(300, 300)">
+          <rect width="280" height="34" rx="4" fill="#09507C" />
+          <text
+            x="140"
+            y="22"
+            textAnchor="middle"
+            fill="#FFFFFF"
+            style={{ font: '600 12px var(--font-roboto, sans-serif)', letterSpacing: '0.04em' }}
+          >
+            Supabase Postgres · jobs · scores · runs
+          </text>
+        </g>
+
+        {/* Arrow from pipeline → dashboard */}
+        <path d="M 580 161 L 630 161" stroke="#94a3b8" strokeWidth="1.5" fill="none" markerEnd="url(#atlas-arrow)" />
+
+        {/* ──────── Column 3: Dashboard ──────── */}
+        <g>
+          <text
+            x="640"
+            y="34"
+            className="fill-ocean"
+            style={{ font: '600 11px var(--font-roboto, sans-serif)', letterSpacing: '0.08em' }}
+          >
+            DASHBOARD
+          </text>
+          <rect x="640" y="50" width="220" height="222" rx="6" fill="#009CDB" fillOpacity="0.06" stroke="#009CDB" strokeOpacity="0.3" strokeWidth="1" />
+          <DiagramTile x={652} y={62} w={196} label="Overview" subtitle="all campuses + roles" />
+          <DiagramTile x={652} y={112} w={196} label="Role-first" subtitle="campuses for one role" />
+          <DiagramTile x={652} y={162} w={196} label="Campus-first" subtitle="roles for one campus" />
+          <DiagramTile x={652} y={212} w={196} label="Focused detail" subtitle="full job table + score" />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+// Cloud-tinted box for the inputs column.
+function DiagramBox({
+  x, y, w, h, title, subtitle, tone,
+}: {
+  x: number; y: number; w: number; h: number;
+  title: string; subtitle: string;
+  tone: 'cloud';
+}) {
+  const fill = tone === 'cloud' ? '#EAE7DF' : '#FFFFFF';
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height={h} rx="4" fill={fill} stroke="#cbd5e1" strokeWidth="1" />
+      <text
+        x={x + 14}
+        y={y + 26}
+        fill="#071E39"
+        style={{ font: '600 13px var(--font-roboto, sans-serif)' }}
+      >
+        {title}
+      </text>
+      <text
+        x={x + 14}
+        y={y + 46}
+        fill="#475569"
+        style={{ font: '12px var(--font-roboto, sans-serif)' }}
+      >
+        {subtitle}
+      </text>
+    </g>
+  );
+}
+
+// Numbered pipeline step (small Royal-circle bullet + label + sublabel).
+function DiagramStep({
+  x, y, w, num, label, subtitle,
+}: {
+  x: number; y: number; w: number;
+  num: string; label: string; subtitle: string;
+}) {
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height="40" rx="4" fill="#FFFFFF" stroke="#cbd5e1" strokeWidth="1" />
+      <circle cx={x + 18} cy={y + 20} r="11" fill="#0079C0" />
+      <text
+        x={x + 18}
+        y={y + 24}
+        textAnchor="middle"
+        fill="#FFFFFF"
+        style={{ font: '700 12px var(--font-roboto, sans-serif)' }}
+      >
+        {num}
+      </text>
+      <text
+        x={x + 38}
+        y={y + 18}
+        fill="#071E39"
+        style={{ font: '600 13px var(--font-roboto, sans-serif)' }}
+      >
+        {label}
+      </text>
+      <text
+        x={x + 38}
+        y={y + 32}
+        fill="#475569"
+        style={{ font: '11px var(--font-roboto, sans-serif)' }}
+      >
+        {subtitle}
+      </text>
+    </g>
+  );
+}
+
+// Dashboard mode tile (ocean-tinted left border + label + sublabel).
+function DiagramTile({
+  x, y, w, label, subtitle,
+}: {
+  x: number; y: number; w: number;
+  label: string; subtitle: string;
+}) {
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height="42" rx="4" fill="#FFFFFF" stroke="#cbd5e1" strokeWidth="1" />
+      <rect x={x} y={y} width="3" height="42" rx="1.5" fill="#009CDB" />
+      <text
+        x={x + 14}
+        y={y + 19}
+        fill="#071E39"
+        style={{ font: '600 13px var(--font-roboto, sans-serif)' }}
+      >
+        {label}
+      </text>
+      <text
+        x={x + 14}
+        y={y + 33}
+        fill="#475569"
+        style={{ font: '11px var(--font-roboto, sans-serif)' }}
+      >
+        {subtitle}
+      </text>
+    </g>
   );
 }
 
