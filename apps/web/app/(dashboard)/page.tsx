@@ -1,14 +1,33 @@
-// Atlas dashboard — Per Scholas brand redesign.
-// Light surface, navy/royal/orange used per brand book. The header carries
-// the Atlas wordmark with Per Scholas attribution above it. Stat cards,
-// insight panels, and the jobs table are arranged in three vertical bands
-// with generous negative space.
+// Atlas dashboard — Per Scholas brand redesign with 30-day cumulative view.
+//
+// Layout (top to bottom):
+//   1. Header (Atlas wordmark + Per Scholas logo + role/campus/last-fetch)
+//   2. Pipeline overview — 30-day cumulative stat cards (the new headline)
+//   3. Detection trend — fetch-by-fetch confidence breakdown (full width)
+//   4. Two-col: Why-jobs-were-filtered | Confidence distribution (30d)
+//   5. Two-col: Top Skills (30d) | Top Employers (30d)
+//   6. Jobs table — 30d deduped, sorted by score desc
+//   7. Footer
+//
+// Why 30-day cumulative as headline: the latest fetch is sparse (Atlanta CFT
+// in any 7-day window has 1–3 entry-level fits). Showing cumulative pipeline
+// over 30 days is the correct narrative for stakeholders — "X jobs scanned,
+// Y still active, Z passed the qualifying gate" — instead of the misleading
+// "0 HIGH, 0 MEDIUM" you'd see on a sparse day.
 
 import { requireUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase-server';
 import { JobsTable } from '@/components/jobs-table';
-import { StatCards } from '@/components/stat-cards';
-import { TopSkillsPanel, TopEmployersPanel, ConfidenceDistributionPanel } from '@/components/insights-panels';
+import { PipelineStats } from '@/components/pipeline-stats';
+import { FetchTrend, type TrendPoint } from '@/components/fetch-trend';
+import { RejectionBreakdown, type RawReason } from '@/components/rejection-breakdown';
+import {
+  TopSkillsPanel,
+  TopEmployersPanel,
+  ConfidenceDistributionPanel,
+} from '@/components/insights-panels';
+
+const WINDOW_DAYS = 30;
 
 interface DashboardPageProps {
   searchParams: { campus?: string; role?: string; confidence?: string };
@@ -18,6 +37,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const user = await requireUser();
   const supabase = createClient();
 
+  // ─── Active campus_role pair (defaults to first active row) ─────────────
   const { data: campusRoles } = await supabase
     .from('campus_roles')
     .select('campus_id, role_id, campuses(*), roles(*)')
@@ -28,63 +48,131 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const activeCampus = campusRoles?.find(cr => cr.campus_id === activeCampusId)?.campuses as any;
   const activeRole = campusRoles?.find(cr => cr.role_id === activeRoleId)?.roles as any;
 
+  // ─── Latest successful fetch (for header timestamp + trend reference) ──
   const { data: latestRun } = await supabase
     .from('fetch_runs')
-    .select('*')
+    .select('id, completed_at, jobs_returned, trigger_type')
     .eq('campus_id', activeCampusId)
     .eq('role_id', activeRoleId)
     .eq('status', 'success')
     .order('completed_at', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
-  const { data: scoresRaw } = await supabase
+  // ─── 30-day window cutoff ──────────────────────────────────────────────
+  const sinceISO = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+  // ─── All score rows in the window for this campus, joined to jobs ──────
+  // We dedupe to "latest score per job" in JS below. Doing it here keeps us
+  // off raw SQL and tolerates the existing Supabase JS query surface.
+  const { data: scoresWindow } = await supabase
     .from('job_scores')
     .select(`
       *,
       jobs:job_id (
         id, source_id, title, organization, url, date_posted,
         cities_derived, regions_derived, ai_salary_min, ai_salary_max,
-        description_text, ai_key_skills, ai_experience_level, still_active
+        description_text, ai_key_skills, ai_experience_level, still_active,
+        first_seen_at
       )
     `)
     .eq('campus_id', activeCampusId)
-    .eq('fetch_run_id', latestRun?.id ?? '00000000-0000-0000-0000-000000000000')
-    .order('score', { ascending: false });
+    .gte('scored_at', sinceISO)
+    .order('scored_at', { ascending: false });
 
-  const scores = (scoresRaw ?? []).filter(s => s.jobs?.still_active !== false);
+  type ScoreRow = NonNullable<typeof scoresWindow>[number];
 
+  // Latest score per job_id, ignoring inactive jobs in the window
+  const seenJobIds = new Set<string>();
+  const latestPerJob: ScoreRow[] = [];
+  for (const s of (scoresWindow ?? []) as ScoreRow[]) {
+    const jid = (s as any).job_id as string;
+    if (seenJobIds.has(jid)) continue;
+    seenJobIds.add(jid);
+    latestPerJob.push(s);
+  }
+
+  // Optional confidence filter (from URL)
+  const confidenceFilter = searchParams.confidence?.toUpperCase();
+  const tableScoresFiltered = confidenceFilter
+    ? latestPerJob.filter(s => (s as any).confidence === confidenceFilter)
+    : latestPerJob;
+  // JobsTable expects descending score order. We deduped by scored_at, so
+  // re-sort by score for display.
+  const tableScores = [...tableScoresFiltered].sort(
+    (a, b) => ((b as any).score ?? 0) - ((a as any).score ?? 0),
+  );
+
+  // ─── Pipeline stats over the window (deduped) ───────────────────────────
   const counts = {
-    HIGH: scores.filter(s => s.confidence === 'HIGH').length,
-    MEDIUM: scores.filter(s => s.confidence === 'MEDIUM').length,
-    LOW: scores.filter(s => s.confidence === 'LOW').length,
-    REJECT: scores.filter(s => s.confidence === 'REJECT').length,
+    HIGH: latestPerJob.filter(s => (s as any).confidence === 'HIGH').length,
+    MEDIUM: latestPerJob.filter(s => (s as any).confidence === 'MEDIUM').length,
+    LOW: latestPerJob.filter(s => (s as any).confidence === 'LOW').length,
+    REJECT: latestPerJob.filter(s => (s as any).confidence === 'REJECT').length,
   };
-  const total = scores.length;
+  const totalSeen = latestPerJob.length;
+  const stillActive = latestPerJob.filter(s => (s as any).jobs?.still_active !== false).length;
   const qualifying = counts.HIGH + counts.MEDIUM + counts.LOW;
 
+  // ─── Rejection breakdown (deduped over window) ──────────────────────────
+  const reasonCounts = new Map<string, number>();
+  for (const s of latestPerJob) {
+    const sr = s as any;
+    if (sr.confidence !== 'REJECT') continue;
+    const key = sr.rejection_reason ?? '__below_score_threshold__';
+    reasonCounts.set(key, (reasonCounts.get(key) ?? 0) + 1);
+  }
+  const rejectionReasons: RawReason[] = Array.from(reasonCounts.entries())
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count);
+
+  // ─── Trend chart data (per fetch_run; rescores filtered out in component) ─
+  const { data: runsWindow } = await supabase
+    .from('fetch_runs')
+    .select('id, completed_at, trigger_type')
+    .eq('campus_id', activeCampusId)
+    .eq('role_id', activeRoleId)
+    .eq('status', 'success')
+    .gte('completed_at', sinceISO)
+    .order('completed_at', { ascending: true });
+
+  const trendByRun = new Map<string, { high: number; medium: number; low: number; reject: number }>();
+  for (const s of (scoresWindow ?? []) as ScoreRow[]) {
+    const fri = (s as any).fetch_run_id as string;
+    if (!trendByRun.has(fri)) trendByRun.set(fri, { high: 0, medium: 0, low: 0, reject: 0 });
+    const c = trendByRun.get(fri)!;
+    const conf = ((s as any).confidence as string).toLowerCase() as 'high' | 'medium' | 'low' | 'reject';
+    c[conf]++;
+  }
+  const trend: TrendPoint[] = ((runsWindow as any[]) ?? []).map(r => ({
+    fetchRunId: r.id,
+    date: r.completed_at,
+    triggerType: r.trigger_type,
+    ...(trendByRun.get(r.id) ?? { high: 0, medium: 0, low: 0, reject: 0 }),
+  }));
+
+  // ─── Insight panels (top skills / employers) — 30d deduped, qualifying ──
   const skillFreq: Record<string, number> = {};
-  scores.filter(s => s.confidence !== 'REJECT').forEach(s => {
-    [...(s.core_matched as string[] ?? []), ...(s.specialized_matched as string[] ?? [])].forEach(skill => {
-      skillFreq[skill] = (skillFreq[skill] ?? 0) + 1;
+  latestPerJob
+    .filter(s => (s as any).confidence !== 'REJECT')
+    .forEach(s => {
+      const sr = s as any;
+      [...(sr.core_matched as string[] ?? []), ...(sr.specialized_matched as string[] ?? [])].forEach(
+        (skill: string) => {
+          skillFreq[skill] = (skillFreq[skill] ?? 0) + 1;
+        },
+      );
     });
-  });
   const topSkills = Object.entries(skillFreq).sort((a, b) => b[1] - a[1]).slice(0, 10);
 
   const empFreq: Record<string, number> = {};
-  scores.filter(s => s.confidence !== 'REJECT' && s.jobs?.organization).forEach(s => {
-    const org = s.jobs!.organization!;
-    empFreq[org] = (empFreq[org] ?? 0) + 1;
-  });
+  latestPerJob
+    .filter(s => (s as any).confidence !== 'REJECT' && (s as any).jobs?.organization)
+    .forEach(s => {
+      const org = (s as any).jobs!.organization as string;
+      empFreq[org] = (empFreq[org] ?? 0) + 1;
+    });
   const topEmployers = Object.entries(empFreq).sort((a, b) => b[1] - a[1]).slice(0, 8);
-
-  const withSalary = scores.filter(s => s.confidence !== 'REJECT' && s.jobs?.ai_salary_min);
-  const avgSalaryMin = withSalary.length
-    ? withSalary.reduce((acc, s) => acc + (s.jobs!.ai_salary_min ?? 0), 0) / withSalary.length
-    : 0;
-  const avgSalaryMax = withSalary.length
-    ? withSalary.reduce((acc, s) => acc + (s.jobs!.ai_salary_max ?? 0), 0) / withSalary.length
-    : 0;
 
   return (
     <main className="min-h-screen bg-white">
@@ -93,7 +181,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       <header className="border-b border-gray-200 bg-white">
         <div className="max-w-[1600px] mx-auto px-6 py-5 flex items-center justify-between gap-6">
           <div className="flex items-center gap-5 min-w-0">
-            {/* Per Scholas 30th Anniversary horizontal logo */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/per-scholas-logo.png"
@@ -115,7 +202,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   : ''}
                 {' · '}
                 {latestRun
-                  ? `Last fetch ${new Date(latestRun.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${latestRun.jobs_returned} jobs`
+                  ? `Last fetch ${new Date((latestRun as any).completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${(latestRun as any).jobs_returned} jobs`
                   : 'No fetches yet — cron runs Mon/Wed/Fri 9am ET'}
               </div>
             </div>
@@ -141,27 +228,44 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       </header>
 
       <div className="max-w-[1600px] mx-auto px-6 py-8 space-y-6">
-        <StatCards
-          total={total}
+        {/* 1. Pipeline overview — 30-day cumulative stats (the headline) */}
+        <PipelineStats
+          windowDays={WINDOW_DAYS}
+          totalSeen={totalSeen}
+          stillActive={stillActive}
           qualifying={qualifying}
           counts={counts}
-          avgSalaryMin={avgSalaryMin}
-          avgSalaryMax={avgSalaryMax}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <TopSkillsPanel skills={topSkills} />
-          <TopEmployersPanel employers={topEmployers} />
-          <ConfidenceDistributionPanel counts={counts} total={total} scores={scores} />
+        {/* 2. Detection trend — per-fetch confidence breakdown */}
+        <FetchTrend data={trend} windowDays={WINDOW_DAYS} />
+
+        {/* 3. Why-filtered + Confidence distribution */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <RejectionBreakdown reasons={rejectionReasons} windowDays={WINDOW_DAYS} />
+          <ConfidenceDistributionPanel
+            counts={counts}
+            total={totalSeen}
+            scores={latestPerJob}
+          />
         </div>
 
-        <JobsTable scores={scores} />
+        {/* 4. Top Skills + Top Employers */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <TopSkillsPanel skills={topSkills} />
+          <TopEmployersPanel employers={topEmployers} />
+        </div>
 
+        {/* 5. Jobs table — 30-day deduped */}
+        <JobsTable scores={tableScores as any} />
+
+        {/* Footer */}
         <footer className="pt-8 border-t border-gray-200 text-xs text-gray-500 leading-relaxed">
           <div className="mb-2 font-semibold uppercase tracking-wider text-gray-700">Data source</div>
           <p>
-            Scores computed against the active CFT taxonomy. Jobs sourced from the Fantastic Jobs
-            Active Jobs DB (rolling 7-day ATS window). Fetch cadence: Mon/Wed/Fri at 9am ET.
+            Pipeline view shows the most recent score per unique job seen in the last {WINDOW_DAYS} days,
+            scored against the active CFT taxonomy. Jobs sourced from the Fantastic Jobs Active Jobs DB
+            (rolling 7-day ATS window). Fetch cadence: Mon/Wed/Fri at 9am ET.
             Admins can trigger a manual fetch from the Admin panel.
           </p>
           <p className="mt-3 text-gray-400">
