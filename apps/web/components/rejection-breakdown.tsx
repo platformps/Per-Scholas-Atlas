@@ -52,6 +52,13 @@ function bucketFor(reason: string): { label: string; hint: string; tone: 'gray' 
       tone: 'orange',
     };
   }
+  if (reason.startsWith('Wrong discipline:')) {
+    return {
+      label: 'Wrong discipline · IT not facilities',
+      hint: 'Title looks like a CFT role but the description is IT-side data center work (rack-and-stack, fiber cabling, hardware troubleshooting, GPU clusters). Better fit for the Per Scholas IT Support / Networking program at this campus.',
+      tone: 'orange',
+    };
+  }
   if (reason.startsWith('Outside ') && reason.includes('mi radius')) {
     return {
       label: 'Outside campus radius',

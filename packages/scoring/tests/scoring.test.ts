@@ -156,6 +156,76 @@ describe('scoreJob — §C v1.1.3 Tier B no-industry-context demotion', () => {
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// v1.1.4 — wrong-discipline IT detector. Tier A title + IT-side description
+// (rack-and-stack, fiber cabling, GPU clusters, RMAs, OS admin) AND zero
+// CFT-side signals (UPS, HVAC, EPA 608, NFPA 70E, MOP/EOP, etc.) → hard
+// reject with "Wrong discipline" reason. Catches the IT data center
+// technician archetype (TEKsystems Phoenix 2026-04-28 score=43 LOW;
+// Nebius Kansas City 2026-04-28 score=46 LOW) where the title is right but
+// the actual work is IT/networking — different Per Scholas program entirely.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('scoreJob — v1.1.4 wrong-discipline IT detector', () => {
+  it('Nebius regression: Tier A title + IT-only description → REJECT with wrong-discipline reason', () => {
+    // Mirrors the actual Nebius Kansas City fetch — DC Technician title,
+    // description is GPU clusters, hardware RMAs, fiber, OS work; zero
+    // CFT-curriculum vocabulary.
+    const job = makeJob({
+      title: 'Data Center Technician (Early Talent)',
+      organization: 'Nebius',
+      description_text:
+        'Hands-on with modern GPU cloud cluster technologies. Rack and stack, fiber optic cabling, hardware troubleshooting, processing return merchandise authorizations (RMA). Computer science background. Linux server administration.',
+      ai_key_skills: ['IT', 'Networking'],
+    });
+    const r = scoreJob(job, taxonomy, atlantaCampus);
+    expect(r.confidence).toBe('REJECT');
+    expect(r.rejectionReason).toMatch(/wrong discipline/i);
+  });
+
+  it('TEKsystems regression: rack-and-stack + fiber + cabling without CFT signals → REJECT', () => {
+    const job = makeJob({
+      title: 'Data Center Technician',
+      organization: 'TEKsystems',
+      description_text:
+        'De-install and re-install equipment. Rack and stack of net new devices. Fiber optic and copper cabling. Network support. Hardware troubleshooting and break/fix.',
+      ai_key_skills: [],
+    });
+    const r = scoreJob(job, taxonomy, atlantaCampus);
+    expect(r.confidence).toBe('REJECT');
+    expect(r.rejectionReason).toMatch(/wrong discipline/i);
+  });
+
+  it('legitimate hybrid CFT job mentioning "patch panel" once is preserved (CFT signals present)', () => {
+    // Real CFT-relevant DC tech roles often mention small IT-adjacent tasks
+    // alongside the core electromechanical work. The absent_signals check
+    // protects these — any one of UPS/HVAC/EPA 608/etc. suppresses the rule.
+    const job = makeJob({
+      title: 'Data Center Technician',
+      organization: 'QTS Data Centers',
+      description_text:
+        'Maintain UPS systems and standby generators. HVAC, chiller, CRAH operations. Execute MOPs and EOPs. NFPA 70E and OSHA 10 required. Occasional patch panel work for fiber optic cable runs in the white space.',
+      ai_key_skills: ['UPS', 'Generator', 'HVAC', 'NFPA 70E'],
+    });
+    const r = scoreJob(job, taxonomy, atlantaCampus);
+    // Should land HIGH/MEDIUM, definitely not REJECT for wrong discipline.
+    expect(r.rejectionReason).not.toMatch(/wrong discipline/i);
+    expect(['HIGH', 'MEDIUM']).toContain(r.confidence);
+  });
+
+  it('only one IT indicator does not fire the rule (min_indicators=2)', () => {
+    // A single passing mention of "rack and stack" shouldn't be enough.
+    const job = makeJob({
+      title: 'Data Center Technician',
+      organization: 'Some Co',
+      description_text:
+        'Maintain UPS, generators, HVAC, chillers. Execute MOPs and EOPs. Some occasional rack and stack as needed. NFPA 70E, OSHA 10 required.',
+      ai_key_skills: ['UPS', 'HVAC', 'NFPA 70E'],
+    });
+    const r = scoreJob(job, taxonomy, atlantaCampus);
+    expect(r.rejectionReason).not.toMatch(/wrong discipline/i);
+  });
+});
+
 describe('scoreJob — exclusions', () => {
   it('excludes "Senior" titles', () => {
     const job = makeJob({

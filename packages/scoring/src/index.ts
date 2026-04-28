@@ -55,6 +55,24 @@ export function scoreJob(
     return rejectResult(base, expReject);
   }
 
+  // v1.1.4: wrong-discipline IT detector. If the description has IT-side
+  // vocabulary (rack-and-stack, fiber, RMA, GPU clusters, etc.) AND lacks
+  // any electromechanical / facilities signal, the job is the IT track —
+  // wrong Per Scholas program, hard reject regardless of title.
+  const wdRule = taxonomy.description_disqualifiers.wrong_discipline_it;
+  if (wdRule) {
+    const indicatorHits = wdRule.indicators.filter(p => descLower.includes(p));
+    if (indicatorHits.length >= wdRule.min_indicators) {
+      const cftSignalHits = wdRule.absent_signals.filter(p => descLower.includes(p));
+      if (cftSignalHits.length === 0) {
+        return rejectResult(
+          base,
+          `Wrong discipline: IT data center role (better fit for IT Support / Networking program) — IT signals: ${indicatorHits.slice(0, 3).join(', ')}${indicatorHits.length > 3 ? `…` : ''}`,
+        );
+      }
+    }
+  }
+
   // ─── Geographic filter ───
   const lat = job.lats_derived?.[0];
   const lng = job.lngs_derived?.[0];

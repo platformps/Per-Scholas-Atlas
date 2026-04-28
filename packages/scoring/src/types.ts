@@ -104,6 +104,24 @@ export interface Taxonomy {
       max_years_allowed: number;
       patterns: string[];
     };
+    /**
+     * v1.1.4: wrong-discipline IT detector. Fires when ≥`min_indicators`
+     * indicator phrases appear in the description AND ZERO `absent_signals`
+     * appear (i.e. no electromechanical / facilities vocabulary). When fired,
+     * the job is hard-rejected even if the title is Tier A.
+     *
+     * Rationale: a CFT title attached to a description of IT-side work
+     * (rack-and-stack, fiber cabling, hardware RMA, GPU clusters, OS admin)
+     * is a wrong-discipline match — better suited to IT Support / Networking
+     * programs at Per Scholas. Without this rule the job lands LOW (~46) on
+     * Tier A (40) + industry-context (3-9) alone, despite being a clear
+     * non-fit. Optional for back-compat with v1.1.0–v1.1.3 schemas.
+     */
+    wrong_discipline_it?: {
+      min_indicators: number;
+      indicators: string[];
+      absent_signals: string[];
+    };
   };
   core_skills: {
     weight_per_match: number;
