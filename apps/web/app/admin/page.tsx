@@ -71,16 +71,18 @@ export default async function AdminPage() {
     a.role_name.localeCompare(b.role_name),
   );
 
-  // ALL pairs (active + inactive) for the pair manager section
+  // ALL pairs (active + inactive) for the pair manager section. We pull
+  // campus.active too so the UI can disable scheduling on inactive campuses
+  // (e.g. Tampa) without leaving them invisible.
   const { data: allPairsRaw } = await supabase
     .from('campus_roles')
-    .select('campus_id, role_id, active, notes, campuses(name), roles(name)')
+    .select('campus_id, role_id, active, notes, campuses(name, active), roles(name)')
     .order('active', { ascending: false })
     .order('campus_id', { ascending: true });
 
   // Full campus + role lists for the "add new pair" dropdowns
   const [{ data: allCampusesRaw }, { data: allRolesRaw }] = await Promise.all([
-    supabase.from('campuses').select('id, name').order('name'),
+    supabase.from('campuses').select('id, name, active').order('name'),
     supabase.from('roles').select('id, name').order('name'),
   ]);
 
@@ -93,6 +95,7 @@ export default async function AdminPage() {
       return {
         campus_id: r.campus_id as string,
         campus_name: campus.name as string,
+        campus_active: campus.active !== false, // default true if missing
         role_id: r.role_id as string,
         role_name: role.name as string,
         active: !!r.active,
@@ -104,6 +107,7 @@ export default async function AdminPage() {
   const allCampuses: CampusOption[] = ((allCampusesRaw as any[]) ?? []).map(c => ({
     id: c.id as string,
     name: c.name as string,
+    active: c.active !== false,
   }));
   const allRoles: RoleOption[] = ((allRolesRaw as any[]) ?? []).map(r => ({
     id: r.id as string,
