@@ -198,7 +198,7 @@ function JobDetail({ row, job }: { row: ScoreRow; job: JoinedJob }) {
       {row.confidence === 'REJECT' && row.rejection_reason && (
         <div className="mb-5 bg-white border border-orange/30 border-l-4 border-l-orange rounded-sm p-4">
           <div className="text-xs font-semibold uppercase tracking-wider text-orange mb-1">
-            Rejection reason
+            Why this is adjacent
           </div>
           <div className="text-sm text-gray-800">{row.rejection_reason}</div>
         </div>

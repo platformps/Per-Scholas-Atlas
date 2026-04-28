@@ -77,8 +77,8 @@ export function ThresholdEditor({
           <span className="text-xs text-gray-400">active: v{taxonomyVersion}</span>
         </div>
         <p className="text-xs text-gray-500 mb-4 leading-relaxed">
-          Cutoffs that determine HIGH / MEDIUM / LOW / REJECT. A score of <em>n</em> is HIGH if{' '}
-          <em>n ≥ HIGH</em>, MEDIUM if <em>n ≥ MEDIUM</em>, LOW if <em>n ≥ LOW</em>, otherwise REJECT.
+          Cutoffs that determine HIGH / MEDIUM / LOW / ADJACENT. A score of <em>n</em> is HIGH if{' '}
+          <em>n ≥ HIGH</em>, MEDIUM if <em>n ≥ MEDIUM</em>, LOW if <em>n ≥ LOW</em>, otherwise ADJACENT.
           Saving creates a new patch version of the active taxonomy.
         </p>
 
@@ -102,7 +102,7 @@ export function ThresholdEditor({
             value={low}
             onChange={setLow}
             color="text-yellow"
-            hint={`${low} – ${medium - 1} → LOW; below ${low} → REJECT`}
+            hint={`${low} – ${medium - 1} → LOW; below ${low} → ADJACENT`}
           />
         </div>
 

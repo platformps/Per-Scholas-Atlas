@@ -105,10 +105,10 @@ export function ConfidenceDistributionPanel({
     bar: string;
     dot: string;
   }> = [
-    { key: 'HIGH',   label: 'High',   bar: 'bg-royal',  dot: 'bg-royal'  },
-    { key: 'MEDIUM', label: 'Medium', bar: 'bg-ocean',  dot: 'bg-ocean'  },
-    { key: 'LOW',    label: 'Low',    bar: 'bg-yellow', dot: 'bg-yellow' },
-    { key: 'REJECT', label: 'Reject', bar: 'bg-gray-300', dot: 'bg-gray-300' },
+    { key: 'HIGH',   label: 'High',     bar: 'bg-royal',    dot: 'bg-royal'    },
+    { key: 'MEDIUM', label: 'Medium',   bar: 'bg-ocean',    dot: 'bg-ocean'    },
+    { key: 'LOW',    label: 'Low',      bar: 'bg-yellow',   dot: 'bg-yellow'   },
+    { key: 'REJECT', label: 'Adjacent', bar: 'bg-gray-300', dot: 'bg-gray-300' },
   ];
 
   if (total === 0) {

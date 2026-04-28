@@ -86,7 +86,7 @@ export default async function FAQPage() {
         <p className="text-sm text-gray-600 mt-2 max-w-3xl leading-relaxed">
           Atlas turns live job postings into a labor-market signal for each Per Scholas
           campus and role. The pieces below explain how that pipeline works — what's encoded
-          in a taxonomy, how a job ends up labelled HIGH or REJECT, when the fetcher runs,
+          in a taxonomy, how a job ends up labelled HIGH or ADJACENT, when the fetcher runs,
           and what the dashboard numbers can and can't tell you.
         </p>
       </section>
@@ -142,7 +142,7 @@ export default async function FAQPage() {
           <Badge tone="royal" variant="soft" size="sm">HIGH</Badge>{' '}
           <Badge tone="ocean" variant="soft" size="sm">MEDIUM</Badge>{' '}
           <Badge tone="yellow" variant="soft" size="sm">LOW</Badge>{' '}
-          <Badge tone="gray" variant="soft" size="sm">REJECT</Badge>. The dashboard shows
+          <Badge tone="gray" variant="soft" size="sm">ADJACENT</Badge>. The dashboard shows
           you the most recent score per unique posting over a rolling 30-day window.
         </p>
         <p>The homepage gives you four ways to look at the same dataset:</p>
@@ -212,8 +212,8 @@ export default async function FAQPage() {
             worth a look.{' '}
             <Badge tone="yellow" variant="soft" size="sm">LOW</Badge> — title sounds
             right but the description is thin.{' '}
-            <Badge tone="gray" variant="soft" size="sm">REJECT</Badge> — clearly not a
-            fit (wrong seniority, wrong industry, too far away, etc.).
+            <Badge tone="gray" variant="soft" size="sm">ADJACENT</Badge> — outside the
+            curriculum's exact target (wrong seniority, wrong industry, too far away, etc.) but kept on the dashboard for visibility.
           </li>
           <li>
             <strong>They write down what matched and why</strong> — which job title pattern
@@ -305,18 +305,18 @@ export default async function FAQPage() {
 
         <h4 className="font-semibold text-night mt-5 mb-2">2. Title exclusions</h4>
         <p>
-          Hard-reject substrings on the title. Includes seniority markers (<em>senior, lead,
+          Hard-exclude substrings on the title. Includes seniority markers (<em>senior, lead,
           principal, manager, director, iii</em>), wrong disciplines (<em>software engineer,
           electrical engineer, network architect</em>), and controls-programming roles.
-          These run before tier matching.
+          These run before tier matching and route the job to ADJACENT.
         </p>
 
         <h4 className="font-semibold text-night mt-5 mb-2">3. Description disqualifiers</h4>
         <p>
-          Hard-reject phrases on the description, plus a regex-based experience filter that
-          rejects when a captured year-count is &gt; <code className="text-night">3</code>{' '}
+          Hard-exclude phrases on the description, plus a regex-based experience filter that
+          excludes when a captured year-count is &gt; <code className="text-night">3</code>{' '}
           AND a "required"-class word appears within 50 characters. Also catches credential
-          requirements like "Bachelor's required" or "P.E. license required".
+          requirements like "Bachelor's required" or "P.E. license required". All route to ADJACENT.
         </p>
 
         <h4 className="font-semibold text-night mt-5 mb-2">4. Skill blocks</h4>
@@ -363,7 +363,7 @@ export default async function FAQPage() {
           redeploy): <Badge tone="royal" variant="soft" size="sm">HIGH ≥ 75</Badge>{' '}
           <Badge tone="ocean" variant="soft" size="sm">MEDIUM ≥ 50</Badge>{' '}
           <Badge tone="yellow" variant="soft" size="sm">LOW ≥ 30</Badge>{' '}
-          <Badge tone="gray" variant="soft" size="sm">REJECT &lt; 30</Badge>.
+          <Badge tone="gray" variant="soft" size="sm">ADJACENT &lt; 30</Badge>.
         </p>
       </FaqSection>
 
@@ -379,9 +379,9 @@ export default async function FAQPage() {
         </p>
         <ol className="list-decimal pl-5 space-y-2 marker:text-gray-400">
           <li>
-            <strong>Hard rejects first.</strong> If the title hits any seniority or
-            wrong-discipline exclusion, score is 0 and the job is REJECT with a recorded
-            reason. Same for credential / experience disqualifiers in the description.
+            <strong>Hard filters first.</strong> If the title hits any seniority or
+            wrong-discipline exclusion, score is 0 and the job lands in ADJACENT with a
+            recorded reason. Same for credential / experience disqualifiers in the description.
           </li>
           <li>
             <strong>Title tier match.</strong> Tier A wins outright if it matches. Tier B
@@ -404,7 +404,7 @@ export default async function FAQPage() {
           </li>
           <li>
             <strong>Threshold bucketing.</strong> The total maps to HIGH / MEDIUM / LOW /
-            REJECT using the role's active thresholds.
+            ADJACENT using the role's active thresholds.
           </li>
         </ol>
         <p>
@@ -416,7 +416,7 @@ export default async function FAQPage() {
           </code>
           . A clean Tier-A data center technician posting with all the right skills and a
           watchlist hit lands well into HIGH territory; a generic Tier-B maintenance role
-          with no industry context lands in REJECT thanks to the v1.1.3 collapse.
+          with no industry context lands in ADJACENT thanks to the v1.1.3 collapse.
         </p>
         <p>
           Every score row records what matched: which title phrase, which skills, which
@@ -504,15 +504,15 @@ export default async function FAQPage() {
             commute radius). Roles in cities outside that radius never enter Atlas.
           </li>
           <li>
-            <strong>Strict entry-level gate.</strong> Title exclusions reject any "senior",
-            "lead", "manager", "principal", or level-III posting before scoring even starts.
-            For CFT, these are the bulk of what real-world ATS feeds are advertising — they
-            simply aren't in scope for new graduates.
+            <strong>Strict entry-level gate.</strong> Title exclusions route any "senior",
+            "lead", "manager", "principal", or level-III posting to ADJACENT before scoring
+            even starts. For CFT, these are the bulk of what real-world ATS feeds are
+            advertising — they simply aren't in scope for new graduates.
           </li>
           <li>
             <strong>Description disqualifiers.</strong> "5+ years experience required",
-            "Bachelor's required", and "P.E. license required" all reject. These eliminate
-            another large chunk of nominally-on-title postings.
+            "Bachelor's required", and "P.E. license required" all route to ADJACENT.
+            These eliminate another large chunk of nominally-on-title postings.
           </li>
           <li>
             <strong>HIGH cutoff is intentionally strict.</strong>{' '}
@@ -576,7 +576,7 @@ export default async function FAQPage() {
           So the right way to think about it: Atlas gets smarter <em>because someone
           edits it</em>, not on its own. The dashboard is the audit surface that makes
           those decisions visible. If you see a job flagged HIGH that shouldn't be — or
-          a clear fit that landed REJECT — that's the signal to improve the taxonomy.
+          a clear fit that landed ADJACENT — that's the signal to improve the taxonomy.
         </p>
       </FaqSection>
     </AppShell>

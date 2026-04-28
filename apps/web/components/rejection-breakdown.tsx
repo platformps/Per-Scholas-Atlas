@@ -112,11 +112,11 @@ export function RejectionBreakdown({ reasons, windowDays }: RejectionBreakdownPr
               Last {windowDays} days · grouped by reason
             </p>
           </div>
-          {total > 0 && <div className="text-xs text-gray-400">{total} rejected</div>}
+          {total > 0 && <div className="text-xs text-gray-400">{total} adjacent</div>}
         </div>
 
         {buckets.length === 0 ? (
-          <EmptyState message="No rejections in this window." />
+          <EmptyState message="No adjacent jobs in this window." />
         ) : (
           <ul className="space-y-3">
             {buckets.map(b => {

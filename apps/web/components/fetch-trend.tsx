@@ -77,7 +77,7 @@ export function FetchTrend({ data, windowDays }: FetchTrendProps) {
                       <div
                         className="bg-gray-300 border-t border-gray-200"
                         style={{ height: `${(p.reject / total) * 100}%` }}
-                        title={`Reject: ${p.reject}`}
+                        title={`Adjacent: ${p.reject}`}
                       />
                     )}
                     {p.low > 0 && (
@@ -119,7 +119,7 @@ export function FetchTrend({ data, windowDays }: FetchTrendProps) {
           <LegendDot color="bg-royal" label="High" />
           <LegendDot color="bg-ocean" label="Medium" />
           <LegendDot color="bg-yellow" label="Low" />
-          <LegendDot color="bg-gray-300" label="Reject" />
+          <LegendDot color="bg-gray-300" label="Adjacent" />
         </div>
       </div>
     </Card>
