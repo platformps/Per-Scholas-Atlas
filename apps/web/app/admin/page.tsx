@@ -186,7 +186,12 @@ export default async function AdminPage() {
     .from('audit_log')
     .select('id, action, user_email, occurred_at, entity_type, entity_id, metadata')
     .order('occurred_at', { ascending: false })
-    .limit(15);
+    .limit(50);
+
+  // Build name lookups so the audit log can render "Newark × LVFT" instead
+  // of opaque slugs. Names already loaded above; just index for O(1).
+  const campusNameById = new Map(allCampuses.map(c => [c.id, c.name]));
+  const roleNameById = new Map(allRoles.map(r => [r.id, r.name]));
 
   const jobsRemaining = (quota as { jobs_remaining?: number | null } | null)?.jobs_remaining ?? null;
   const requestsRemaining = (quota as { requests_remaining?: number | null } | null)?.requests_remaining ?? null;
@@ -426,26 +431,26 @@ export default async function AdminPage() {
 
       <section>
         <div className="flex items-baseline justify-between mb-3">
-          <h2 className="text-base font-semibold text-night">Audit log</h2>
-          <span className="text-xs text-gray-400">last 15</span>
+          <div>
+            <h2 className="text-base font-semibold text-night">Activity log</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Who triggered what fetch / rescore / pair toggle. Useful for new
+              admins to see what senior admins are doing — read the log for a
+              week and the workflow patterns become obvious.
+            </p>
+          </div>
+          <span className="text-xs text-gray-400 shrink-0">last 50</span>
         </div>
         <Card>
           {(audit as AuditRow[] | null)?.length ? (
             <ul className="divide-y divide-gray-100">
               {(audit as AuditRow[]).map(a => (
-                <li
+                <ActivityLogRow
                   key={a.id}
-                  className="px-6 py-2.5 text-sm flex items-baseline justify-between gap-4"
-                >
-                  <span className="text-gray-500 w-[140px] flex-shrink-0">
-                    {formatTime(a.occurred_at)}
-                  </span>
-                  <span className="text-night font-medium">{a.action}</span>
-                  <span className="text-gray-500 truncate flex-1">
-                    {a.user_email ?? 'system'}
-                    {a.entity_id ? ` → ${a.entity_type}/${a.entity_id.slice(0, 8)}` : ''}
-                  </span>
-                </li>
+                  entry={a}
+                  campusNameById={campusNameById}
+                  roleNameById={roleNameById}
+                />
               ))}
             </ul>
           ) : (
@@ -620,4 +625,104 @@ interface AuditRow {
   entity_type: string | null;
   entity_id: string | null;
   metadata: Record<string, unknown> | null;
+}
+
+// ─── Activity log row ───────────────────────────────────────────────────────
+//
+// Renders one audit_log entry in human-readable form:
+//   [Manual fetch]  Sara · Newark × LVFT · 60 jobs · 3h ago
+//
+// Looks up campus/role names from id maps passed in by the parent (already
+// loaded server-side; no extra round-trip). Falls back to the raw slug if
+// a campus/role has been deleted.
+const ACTION_LABELS: Record<string, { label: string; tone: 'royal' | 'navy' | 'ocean' | 'gray' | 'yellow' }> = {
+  'fetch.manual':       { label: 'Manual fetch',         tone: 'royal' },
+  'fetch.scheduled':    { label: 'Scheduled fetch',      tone: 'navy' },
+  'rescore':            { label: 'Rescore',              tone: 'ocean' },
+  'campus_role.update': { label: 'Pair toggled',         tone: 'gray' },
+  'taxonomy.save':      { label: 'Taxonomy saved',       tone: 'yellow' },
+};
+
+function ActivityLogRow({
+  entry,
+  campusNameById,
+  roleNameById,
+}: {
+  entry: AuditRow;
+  campusNameById: Map<string, string>;
+  roleNameById: Map<string, string>;
+}) {
+  const meta = (entry.metadata ?? {}) as Record<string, unknown>;
+  const campusId = typeof meta.campus_id === 'string' ? meta.campus_id : null;
+  const roleId = typeof meta.role_id === 'string' ? meta.role_id : null;
+  const jobsScored = typeof meta.jobs_scored === 'number' ? meta.jobs_scored : null;
+  const jobsReturned = typeof meta.jobs_returned === 'number' ? meta.jobs_returned : null;
+  const active = typeof meta.active === 'boolean' ? meta.active : null;
+  const taxonomyVersion = typeof meta.taxonomy_version === 'string' ? meta.taxonomy_version : null;
+
+  const actionInfo = ACTION_LABELS[entry.action] ?? { label: entry.action, tone: 'gray' as const };
+  const campusName = campusId ? (campusNameById.get(campusId) ?? campusId) : null;
+  const roleName = roleId ? (roleNameById.get(roleId) ?? roleId) : null;
+
+  // Build a "target" string describing what the action was applied to.
+  let target: string | null = null;
+  if (campusName && roleName) target = `${campusName} × ${roleName}`;
+  else if (campusName) target = campusName;
+  else if (roleName) target = roleName;
+
+  // Build a "result" tail with the salient metric for that action.
+  const resultParts: string[] = [];
+  if (entry.action === 'fetch.manual' && jobsReturned != null) {
+    resultParts.push(`${jobsReturned} job${jobsReturned === 1 ? '' : 's'}`);
+  } else if (entry.action === 'rescore' && jobsScored != null) {
+    resultParts.push(`${jobsScored} rescored`);
+  } else if (entry.action === 'campus_role.update' && active != null) {
+    resultParts.push(active ? 'activated' : 'deactivated');
+  } else if (entry.action === 'taxonomy.save' && taxonomyVersion) {
+    resultParts.push(`v${taxonomyVersion}`);
+  }
+  const result = resultParts.join(' · ');
+
+  return (
+    <li className="px-6 py-2.5 text-sm flex items-baseline gap-3 flex-wrap">
+      <Badge tone={actionInfo.tone} variant="soft" size="sm">
+        {actionInfo.label}
+      </Badge>
+      <span className="text-gray-700 truncate min-w-0">
+        {entry.user_email ?? 'system'}
+      </span>
+      {target && (
+        <>
+          <span className="text-gray-300">·</span>
+          <span className="text-night font-medium">{target}</span>
+        </>
+      )}
+      {result && (
+        <>
+          <span className="text-gray-300">·</span>
+          <span className="text-gray-600">{result}</span>
+        </>
+      )}
+      <span
+        className="text-xs text-gray-400 ml-auto shrink-0"
+        title={formatTime(entry.occurred_at)}
+      >
+        {formatRelativeTime(entry.occurred_at)}
+      </span>
+    </li>
+  );
+}
+
+function formatRelativeTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.valueOf())) return '—';
+  const ageMs = Date.now() - d.valueOf();
+  const ageMin = ageMs / 60_000;
+  if (ageMin < 1) return 'just now';
+  if (ageMin < 60) return `${Math.round(ageMin)}m ago`;
+  const ageHours = ageMin / 60;
+  if (ageHours < 24) return `${Math.round(ageHours)}h ago`;
+  const ageDays = ageHours / 24;
+  if (ageDays < 30) return `${Math.round(ageDays)}d ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
