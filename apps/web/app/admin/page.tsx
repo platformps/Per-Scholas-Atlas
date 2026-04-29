@@ -162,6 +162,19 @@ export default async function AdminPage() {
     .order('started_at', { ascending: false })
     .limit(20);
 
+  // Last successful SCHEDULED fetch — that's the cron heartbeat. Manual
+  // fetches don't count because admins might not run them on a cadence.
+  const { data: lastCronRunRaw } = await supabase
+    .from('fetch_runs')
+    .select('completed_at')
+    .eq('trigger_type', 'scheduled')
+    .eq('status', 'success')
+    .order('completed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const lastCronISO =
+    (lastCronRunRaw as { completed_at?: string | null } | null)?.completed_at ?? null;
+
   const { data: quota } = await supabase
     .from('api_usage')
     .select('jobs_remaining, requests_remaining, recorded_at')
@@ -199,6 +212,11 @@ export default async function AdminPage() {
       }
       footer={<Footer />}
     >
+      {/* Cron heartbeat — most-recent successful scheduled fetch with a
+          warning chip if it's been >36h. Lets an admin spot a stalled cron
+          before someone notices the homepage is going stale. */}
+      <CronFreshness lastCronISO={lastCronISO} />
+
       {/* Brief orientation strip — gives a first-time admin a 3-second read
           on what each section below is for. Sits above the manual-fetch
           area which is the most-used admin tool. */}
@@ -464,6 +482,118 @@ function formatTime(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.valueOf())) return '—';
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+// ─── Cron freshness banner ──────────────────────────────────────────────────
+//
+// Renders a single-row card at the top of the admin page showing:
+//   • Last successful scheduled fetch (relative + absolute)
+//   • Next scheduled run (Mon/Wed/Fri 9am ET)
+//   • Orange warning chip if it's been >36h since the last successful cron
+//
+// 36h is the threshold because the longest gap in a healthy MWF cadence is
+// Friday → Monday (~72h). But in practice we expect the cron to fire within
+// 24h of the last (Mon→Wed and Wed→Fri are both 48h). 36h represents "we've
+// missed at least one expected slot" — a reasonable point to alert.
+//
+// Definition of "scheduled": fetch_runs.trigger_type='scheduled' (the cron
+// path). Manual fetches don't count toward heartbeat — admins might not run
+// them on a cadence and we shouldn't paper over a stalled cron with manual
+// work.
+const CRON_STALE_HOURS = 36;
+// Cron schedule: Mon/Wed/Fri at 9am ET. In Date-of-week terms: 1, 3, 5.
+const CRON_DAYS_OF_WEEK = [1, 3, 5];
+
+function CronFreshness({ lastCronISO }: { lastCronISO: string | null }) {
+  const now = new Date();
+  const last = lastCronISO ? new Date(lastCronISO) : null;
+  const ageHours = last ? (now.valueOf() - last.valueOf()) / 36e5 : null;
+  const stale = ageHours == null || ageHours > CRON_STALE_HOURS;
+  const next = nextCronET(now);
+
+  return (
+    <Card>
+      <div className="px-5 sm:px-6 py-3.5 flex flex-wrap items-center gap-3 justify-between">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <Badge tone={stale ? 'orange' : 'royal'} variant="soft" size="sm">
+            {stale ? 'Cron stale' : 'Cron healthy'}
+          </Badge>
+          <span className="text-sm text-gray-700">
+            Last successful cron:{' '}
+            <span className="font-semibold text-night">
+              {last ? formatRelativeHours(ageHours!) : 'never'}
+            </span>
+            {last && (
+              <span className="text-gray-400 ml-1.5">({formatTime(lastCronISO)})</span>
+            )}
+          </span>
+        </div>
+        <span className="text-xs text-gray-600">
+          Next scheduled: <span className="text-night font-medium">{formatNextCron(next)}</span>
+        </span>
+      </div>
+      {stale && (
+        <div className="border-t border-orange/20 bg-orange/[0.04] px-5 sm:px-6 py-2.5">
+          <p className="text-xs text-orange leading-relaxed">
+            The scheduled fetch hasn&apos;t completed in the expected window.
+            Check the GitHub Actions cron job (<code>weekly-fetch.yml</code>) and
+            the most recent run on the <strong>Recent fetch runs</strong> table
+            below for an error message. Trigger a manual unfiltered fetch to
+            unblock if the cron itself is healthy but the last attempt failed.
+          </p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function formatRelativeHours(hours: number): string {
+  if (hours < 1) {
+    const minutes = Math.max(1, Math.round(hours * 60));
+    return `${minutes}m ago`;
+  }
+  if (hours < 36) return `${Math.round(hours)}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+// Compute the next Mon/Wed/Fri 9am in America/New_York. We iterate one day
+// at a time from `now` and check the day-of-week + hour in ET.
+function nextCronET(from: Date): Date {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short',
+    hour: 'numeric',
+    hour12: false,
+  });
+  const dayMap: Record<string, number> = {
+    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+  };
+  // Start scanning from `from` rounded forward; we step in 1h increments
+  // (cheap; max 168 iterations for a worst-case full week).
+  for (let h = 0; h < 24 * 8; h++) {
+    const probe = new Date(from.valueOf() + h * 3600_000);
+    const parts = fmt.formatToParts(probe);
+    const weekday = parts.find(p => p.type === 'weekday')?.value ?? '';
+    const hour = parseInt(parts.find(p => p.type === 'hour')?.value ?? '0', 10);
+    const dow = dayMap[weekday];
+    if (dow !== undefined && CRON_DAYS_OF_WEEK.includes(dow) && hour === 9 && probe > from) {
+      return probe;
+    }
+  }
+  // Should never hit; return a sentinel.
+  return new Date(from.valueOf() + 24 * 3600_000);
+}
+
+function formatNextCron(d: Date): string {
+  return d.toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  });
 }
 
 interface RunRow {

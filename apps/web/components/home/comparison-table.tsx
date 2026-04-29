@@ -131,6 +131,12 @@ export function ComparisonTable({
 // ─────────────────────────────────────────────────────────────────────────────
 function ComparisonRowEl({ row, rank }: { row: ComparisonRow; rank: number | null }) {
   const interactive = !!row.href;
+  // total === 0 means this (campus, role) pair has zero scored records in
+  // the 30-day window — distinct from "scored but all rejected." Shown
+  // muted with a "Not yet fetched" hint so admins can tell the difference
+  // between "no data because we haven't asked" and "no data because the
+  // market is genuinely cold right now."
+  const empty = row.total === 0;
   const Wrapper = interactive
     ? ({ children }: { children: React.ReactNode }) => (
         <Link href={row.href!} className="contents">
@@ -169,29 +175,45 @@ function ComparisonRowEl({ row, rank }: { row: ComparisonRow; rank: number | nul
           </div>
         </td>
         <td className="px-3 py-3 align-top text-sm text-night text-right tabular-nums">
-          {row.total.toLocaleString()}
+          {empty ? <span className="text-gray-300">—</span> : row.total.toLocaleString()}
         </td>
         <td className="px-3 py-3 align-top text-sm text-night text-right tabular-nums">
-          <span>{row.live.toLocaleString()}</span>
-          {row.total ? (
-            <span className="text-gray-400 ml-1">
-              · {Math.round((row.live / row.total) * 100)}%
-            </span>
-          ) : null}
+          {empty ? (
+            <span className="text-gray-300">—</span>
+          ) : (
+            <>
+              <span>{row.live.toLocaleString()}</span>
+              {row.total ? (
+                <span className="text-gray-400 ml-1">
+                  · {Math.round((row.live / row.total) * 100)}%
+                </span>
+              ) : null}
+            </>
+          )}
         </td>
         <td className="px-3 py-3 align-top text-sm text-right tabular-nums">
-          <span className="text-royal font-medium">{row.qualifying.toLocaleString()}</span>
-          {row.live ? (
-            <span className="text-gray-400 ml-1">
-              · {Math.round((row.qualifying / row.live) * 100)}%
-            </span>
-          ) : null}
+          {empty ? (
+            <span className="text-gray-300">—</span>
+          ) : (
+            <>
+              <span className="text-royal font-medium">{row.qualifying.toLocaleString()}</span>
+              {row.live ? (
+                <span className="text-gray-400 ml-1">
+                  · {Math.round((row.qualifying / row.live) * 100)}%
+                </span>
+              ) : null}
+            </>
+          )}
         </td>
         <td className="px-3 py-3 align-top text-sm text-gray-700 text-right tabular-nums">
-          {row.employers.toLocaleString()}
+          {empty ? <span className="text-gray-300">—</span> : row.employers.toLocaleString()}
         </td>
         <td className="px-3 py-3 align-top text-xs text-gray-700">
-          {row.topTitles.length === 0 ? (
+          {empty ? (
+            <span className="text-[11px] text-gray-500 italic">
+              Not yet fetched · trigger a manual fetch
+            </span>
+          ) : row.topTitles.length === 0 ? (
             <span className="text-gray-400">—</span>
           ) : (
             <div className="flex flex-wrap gap-1.5">

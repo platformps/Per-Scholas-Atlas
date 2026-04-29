@@ -13,6 +13,7 @@
 // restrained color use (Royal/Ocean/Yellow/Gray via ConfidenceBadge).
 
 import { useState } from 'react';
+import { ExternalLink } from 'lucide-react';
 import { ConfidenceBadge, type Confidence } from './confidence-badge';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
@@ -143,7 +144,25 @@ function JobRow({ row }: { row: ScoreRow }) {
           <ConfidenceBadge value={row.confidence} />
         </td>
         <td className="px-3 py-3 align-top min-w-0">
-          <div className="text-sm font-medium text-night truncate">{job.title ?? '—'}</div>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-sm font-medium text-night truncate">{job.title ?? '—'}</span>
+            {job.url && (
+              // stopPropagation so clicking the link doesn't also toggle the
+              // row-expand drawer behind it. Open in new tab so the MD can
+              // scan the JD without losing their place in the dashboard.
+              <a
+                href={job.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                aria-label="Open posting in new tab"
+                title="Open posting"
+                className="shrink-0 text-gray-400 hover:text-royal focus:text-royal focus:outline-none focus:ring-2 focus:ring-royal/30 rounded-sm transition-colors duration-150"
+              >
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+              </a>
+            )}
+          </div>
           {row.title_tier && (
             <div className="text-xs text-gray-500 mt-0.5">
               <span className="font-medium text-navy">Tier {row.title_tier}</span>
