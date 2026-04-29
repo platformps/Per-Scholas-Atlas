@@ -226,19 +226,17 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   // rescored taxonomy collapses the other one out — e.g. after a fresh
   // LVFT rescore, almost every job's CFT score disappeared from the
   // homepage's "latest" set, dropping the role count from 2 → 1.
-  // Filter to live postings: still_active=true OR null (null = pre-reconciliation,
-  // treated as active to avoid hiding fresh fetches). still_active=false means
-  // the source ATS has removed the listing — keeping these in the leaderboard
-  // inflates record counts with stale ghost postings (LVFT showed 946 records
-  // including 651 inactive; the live number was 295). The Managing Director
-  // mental model is "what's currently hireable in this market," not "what
-  // existed on this market over the last 30 days."
+  // Note: we do NOT filter still_active=false here. The home aggregations
+  // expose BOTH "seen" (everything in the window) and "still active" (live)
+  // counts so the homepage can mirror the pipeline-stats vocabulary used on
+  // the campus drilldown — "55 seen · 8 still active · 2 qualifying" reads
+  // the same on every surface. Filtering inactive rows out at this stage
+  // would collapse the two into one number.
   const seen = new Set<string>();
   const rows: ScoreWithContext[] = [];
   for (const r of rawScores) {
     const tax = Array.isArray(r.taxonomies) ? r.taxonomies[0] : r.taxonomies;
     const jb = Array.isArray(r.jobs) ? r.jobs[0] : r.jobs;
-    if (jb?.still_active === false) continue;
     const roleId = tax?.role_id ?? '__no_role__';
     const key = `${r.job_id}|${r.campus_id}|${roleId}`;
     if (seen.has(key)) continue;
@@ -275,9 +273,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       cid => `/?campus=${encodeURIComponent(cid)}&role=${encodeURIComponent(activeRoleId)}`,
     );
 
-    // Top titles across all campuses for this role
+    // Top titles across all campuses for this role.
+    // Scoped to live + qualifying so the list tracks the "Qualifying" tile.
     const titleCount = new Map<string, number>();
     for (const r of filteredRows) {
+      if (r.still_active === false) continue;
       if (r.confidence === 'REJECT' || !r.job_title) continue;
       const t = r.job_title.trim();
       titleCount.set(t, (titleCount.get(t) ?? 0) + 1);
@@ -317,7 +317,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           roleName={activeRole.name}
           windowDays={WINDOW_DAYS}
           totals={{
-            records: overview.totalRecords,
+            seen: overview.totalRecords,
+            live: overview.liveRecords,
             qualifying: overview.qualifyingRecords,
             employers: overview.employerCount,
           }}
@@ -343,10 +344,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       rid => `/?campus=${encodeURIComponent(activeCampusId)}&role=${encodeURIComponent(rid)}`,
     );
 
-    // Top employers and titles across all roles for this campus
+    // Top employers and titles across all roles for this campus.
+    // Scoped to live + qualifying so the lists track the "Qualifying" tile.
     const employerCount = new Map<string, number>();
     const titleCount = new Map<string, number>();
     for (const r of filteredRows) {
+      if (r.still_active === false) continue;
       if (r.confidence === 'REJECT') continue;
       if (r.organization) {
         employerCount.set(r.organization, (employerCount.get(r.organization) ?? 0) + 1);
@@ -405,7 +408,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           campusAddress={activeCampus.address}
           windowDays={WINDOW_DAYS}
           totals={{
-            records: overview.totalRecords,
+            seen: overview.totalRecords,
+            live: overview.liveRecords,
             qualifying: overview.qualifyingRecords,
             employers: overview.employerCount,
           }}
@@ -482,6 +486,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       {/* 1. Headline numbers */}
       <HomeOverview
         totalRecords={overview.totalRecords}
+        liveRecords={overview.liveRecords}
         qualifyingRecords={overview.qualifyingRecords}
         campusCount={overview.campusCount}
         campusTotal={filterCampuses.length}

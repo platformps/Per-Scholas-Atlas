@@ -18,7 +18,8 @@ interface CampusFirstViewProps {
   campusName: string;
   campusAddress: string | null;
   windowDays: number;
-  totals: { records: number; qualifying: number; employers: number };
+  /** seen / live / qualifying mirror pipeline-stats vocab. */
+  totals: { seen: number; live: number; qualifying: number; employers: number };
   lastFetchISO: string | null;
   topEmployers: Array<[string, number]>;
   topTitles: string[];
@@ -98,7 +99,8 @@ function ContextBanner({
   campusName: string;
   campusAddress: string | null;
   windowDays: number;
-  totals: { records: number; qualifying: number; employers: number };
+  /** seen / live / qualifying mirror pipeline-stats vocab. */
+  totals: { seen: number; live: number; qualifying: number; employers: number };
   lastFetchISO: string | null;
 }) {
   return (
@@ -118,8 +120,9 @@ function ContextBanner({
             {lastFetchISO ? <>Last fetch {formatRelative(lastFetchISO)}.</> : 'No fetches yet.'}
           </p>
         </div>
-        <div className="grid grid-cols-3 gap-3 sm:gap-4 lg:w-[420px]">
-          <Stat label="Records" value={totals.records} tone="navy" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 lg:w-[520px]">
+          <Stat label="Seen" value={totals.seen} tone="neutral" />
+          <Stat label="Still active" value={totals.live} tone="navy" />
           <Stat label="Qualifying" value={totals.qualifying} tone="royal" />
           <Stat label="Employers" value={totals.employers} tone="ocean" />
         </div>
@@ -135,9 +138,13 @@ function Stat({
 }: {
   label: string;
   value: number;
-  tone: 'navy' | 'royal' | 'ocean';
+  tone: 'neutral' | 'navy' | 'royal' | 'ocean';
 }) {
-  const color = tone === 'navy' ? 'text-navy' : tone === 'royal' ? 'text-royal' : 'text-ocean';
+  const color =
+    tone === 'navy' ? 'text-navy'
+    : tone === 'royal' ? 'text-royal'
+    : tone === 'ocean' ? 'text-ocean'
+    : 'text-night';
   return (
     <div>
       <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">

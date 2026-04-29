@@ -41,10 +41,18 @@ export function bumpBucket(
 
 // ─── totals (overview tile values) ──────────────────────────────────────────
 export interface OverviewTotals {
+  /** Unique (job, campus) pairs in the 30-day window — "Seen". */
   totalRecords: number;
+  /** Subset of totalRecords whose underlying job is still_active != false.
+   *  The "Still Active" tile (also includes still_active === null, i.e.
+   *  pre-reconciliation rows on a fresh fetch). */
+  liveRecords: number;
+  /** Unique (job, campus) pairs that are non-REJECT AND still_active.
+   *  Mirrors pipeline-stats.tsx `qualifying` definition exactly. */
   qualifyingRecords: number;
   campusCount: number;
   roleCount: number;
+  /** Distinct employers across qualifying-and-still-active postings. */
   employerCount: number;
 }
 
@@ -61,25 +69,36 @@ export interface OverviewTotals {
  * `roleCount` and `campusCount` come from the un-collapsed set so they
  * reflect "how many roles / campuses have any data," which is the right
  * "X of Y active" semantic for those tiles.
+ *
+ * Vocabulary alignment with pipeline-stats.tsx (campus drilldown):
+ *   Seen          = totalRecords          (all deduped pairs)
+ *   Still Active  = liveRecords           (still_active !== false)
+ *   Qualifying    = qualifyingRecords     (still_active !== false AND non-REJECT)
  */
 export function computeOverview(rows: ScoreWithContext[]): OverviewTotals {
   const campusSet = new Set<string>();
   const roleSet = new Set<string>();
   const employerSet = new Set<string>();
   const allPairs = new Set<string>();
+  const livePairs = new Set<string>();
   const qualifyingPairs = new Set<string>();
   for (const r of rows) {
     campusSet.add(r.campus_id);
     if (r.role_id) roleSet.add(r.role_id);
     const pairKey = `${r.job_id}|${r.campus_id}`;
     allPairs.add(pairKey);
-    if (r.confidence !== 'REJECT') {
-      qualifyingPairs.add(pairKey);
-      if (r.organization) employerSet.add(r.organization);
+    const isLive = r.still_active !== false;
+    if (isLive) {
+      livePairs.add(pairKey);
+      if (r.confidence !== 'REJECT') {
+        qualifyingPairs.add(pairKey);
+        if (r.organization) employerSet.add(r.organization);
+      }
     }
   }
   return {
     totalRecords: allPairs.size,
+    liveRecords: livePairs.size,
     qualifyingRecords: qualifyingPairs.size,
     campusCount: campusSet.size,
     roleCount: roleSet.size,
@@ -139,6 +158,15 @@ function groupBy<K extends string>(
 }
 
 // ─── derive a comparison row from a group ───────────────────────────────────
+//
+// Vocabulary mirror of pipeline-stats.tsx:
+//   total      = "Seen"          (every row in the group, regardless of still_active)
+//   live       = "Still Active"  (rows where still_active !== false)
+//   qualifying = "Qualifying"    (live AND non-REJECT)
+//   employers  = distinct orgs across qualifying postings
+//   buckets    = HIGH/MEDIUM/LOW/REJECT counts among live rows only — so the
+//                "market signal" mini-bar reflects the current opportunity
+//                shape, not a 30-day historical mix that includes ghost jobs.
 function deriveComparisonRow(
   id: string,
   name: string,
@@ -150,8 +178,12 @@ function deriveComparisonRow(
   const buckets = emptyBuckets();
   const employerSet = new Set<string>();
   const titleCount = new Map<string, number>();
+  let live = 0;
   let qualifying = 0;
   for (const r of group) {
+    const isLive = r.still_active !== false;
+    if (!isLive) continue;
+    live += 1;
     bumpBucket(buckets, r.confidence);
     if (r.confidence !== 'REJECT') {
       qualifying += 1;
@@ -171,6 +203,7 @@ function deriveComparisonRow(
     name,
     subtitle,
     total: group.length,
+    live,
     qualifying,
     employers: employerSet.size,
     topTitles,

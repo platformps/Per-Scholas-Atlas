@@ -28,9 +28,12 @@ export interface ComparisonRow {
   name: string;
   /** Optional secondary line (e.g. campus state, role short code). */
   subtitle?: string;
-  /** Total scored records in window. */
+  /** "Seen" — every scored record in the 30-day window. */
   total: number;
-  /** Records whose confidence is HIGH/MEDIUM/LOW (i.e. not REJECT). */
+  /** "Still Active" — subset of total whose underlying job is still live
+   *  on the source ATS (still_active !== false). */
+  live: number;
+  /** "Qualifying" — live AND non-REJECT. Mirrors pipeline-stats.tsx. */
   qualifying: number;
   /** Distinct employer organizations across qualifying jobs. */
   employers: number;
@@ -87,13 +90,14 @@ export function ComparisonTable({
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse">
+          <table className="w-full min-w-[860px] border-collapse">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
                 {ranked && <th className="px-6 py-2.5 text-left w-[44px]">#</th>}
                 <th className="px-3 py-2.5 text-left">{rowLabel}</th>
-                <th className="px-3 py-2.5 text-right w-[80px]">Records</th>
-                <th className="px-3 py-2.5 text-right w-[80px]">Qualif.</th>
+                <th className="px-3 py-2.5 text-right w-[72px]">Seen</th>
+                <th className="px-3 py-2.5 text-right w-[88px]">Still active</th>
+                <th className="px-3 py-2.5 text-right w-[88px]">Qualifying</th>
                 <th className="px-3 py-2.5 text-right w-[80px]">Employers</th>
                 <th className="px-3 py-2.5 text-left min-w-[200px]">Top titles</th>
                 <th className="px-6 py-2.5 text-left w-[160px]">Market signal</th>
@@ -158,11 +162,21 @@ function ComparisonRowEl({ row, rank }: { row: ComparisonRow; rank: number | nul
         <td className="px-3 py-3 align-top text-sm text-night text-right tabular-nums">
           {row.total.toLocaleString()}
         </td>
+        <td className="px-3 py-3 align-top text-sm text-night text-right tabular-nums">
+          <span>{row.live.toLocaleString()}</span>
+          {row.total ? (
+            <span className="text-gray-400 ml-1">
+              · {Math.round((row.live / row.total) * 100)}%
+            </span>
+          ) : null}
+        </td>
         <td className="px-3 py-3 align-top text-sm text-right tabular-nums">
           <span className="text-royal font-medium">{row.qualifying.toLocaleString()}</span>
-          <span className="text-gray-400 ml-1">
-            · {row.total ? Math.round((row.qualifying / row.total) * 100) : 0}%
-          </span>
+          {row.live ? (
+            <span className="text-gray-400 ml-1">
+              · {Math.round((row.qualifying / row.live) * 100)}%
+            </span>
+          ) : null}
         </td>
         <td className="px-3 py-3 align-top text-sm text-gray-700 text-right tabular-nums">
           {row.employers.toLocaleString()}
@@ -186,7 +200,7 @@ function ComparisonRowEl({ row, rank }: { row: ComparisonRow; rank: number | nul
           )}
         </td>
         <td className="px-6 py-3 align-top">
-          <MarketSignal buckets={row.buckets} total={row.total} />
+          <MarketSignal buckets={row.buckets} total={row.live} />
         </td>
       </Wrapper>
     </tr>

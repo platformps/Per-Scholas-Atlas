@@ -1,19 +1,21 @@
-// Top of the aggregate landing — five metric tiles giving a Managing
+// Top of the aggregate landing — six metric tiles giving a Managing
 // Director an instant read on the overall opportunity landscape.
 //
-// Tiles: Total records · Campuses represented · Roles represented · Unique
-// employers · Last updated. The "Last updated" tile uses the most recent
-// successful fetch_run timestamp across all pairs so the user can see how
-// fresh the picture is.
+// Tiles: Seen · Still Active · Qualifying · Campuses · Roles · Employers.
+// Vocabulary mirrors pipeline-stats.tsx (campus drilldown) so the same
+// three primary numbers appear with the same labels everywhere — a request
+// from Imran on 2026-04-28 after the homepage was showing a single
+// ambiguous "Records" tile while the campus drilldown showed all three.
 //
 // All tiles use the shared <Card> primitive. Layout: 2-col on mobile,
-// 5-col on desktop. The metric values use tabular-nums so column widths
+// 6-col on desktop. The metric values use tabular-nums so column widths
 // stay stable as numbers change.
 
 import { Card } from '../ui/card';
 
 interface HomeOverviewProps {
   totalRecords: number;
+  liveRecords: number;
   qualifyingRecords: number;
   campusCount: number;
   campusTotal: number;
@@ -26,6 +28,7 @@ interface HomeOverviewProps {
 
 export function HomeOverview({
   totalRecords,
+  liveRecords,
   qualifyingRecords,
   campusCount,
   campusTotal,
@@ -35,20 +38,29 @@ export function HomeOverview({
   lastUpdatedISO,
   windowDays,
 }: HomeOverviewProps) {
-  const qualifyPct = totalRecords ? Math.round((qualifyingRecords / totalRecords) * 100) : 0;
+  // Pass rate against Still Active matches pipeline-stats.tsx semantics —
+  // "of jobs currently hireable, what share clears the bar?"
+  const qualifyPct = liveRecords ? Math.round((qualifyingRecords / liveRecords) * 100) : 0;
+  const livePct = totalRecords ? Math.round((liveRecords / totalRecords) * 100) : 0;
   return (
     <section aria-label="Overview metrics">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         <Tile
-          label={`Job records · ${windowDays}d`}
+          label={`Seen · ${windowDays}d`}
           value={totalRecords.toLocaleString()}
-          sublabel="unique postings seen"
+          sublabel="unique postings"
+          tone="neutral"
+        />
+        <Tile
+          label="Still active"
+          value={liveRecords.toLocaleString()}
+          sublabel={totalRecords ? `${livePct}% of seen` : '—'}
           tone="navy"
         />
         <Tile
           label="Qualifying"
           value={qualifyingRecords.toLocaleString()}
-          sublabel={totalRecords ? `${qualifyPct}% pass rate` : '—'}
+          sublabel={liveRecords ? `${qualifyPct}% pass rate` : '—'}
           tone="royal"
         />
         <Tile
