@@ -146,10 +146,21 @@ function BulkRoleButtons({ pairs }: { pairs: CampusRow[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Rescore is a separate transition because it can take 30-90s for a
+  // multi-pair role and we don't want to block activate/deactivate
+  // affordances during the wait.
+  const [rescoring, setRescoring] = useState(false);
+  const [rescoreMsg, setRescoreMsg] = useState<string | null>(null);
 
   // Activate-targets: inactive pairs whose campus is also active (skip Tampa-like).
   const activateTargets = pairs.filter(p => !p.active && p.campus_active);
   const deactivateTargets = pairs.filter(p => p.active);
+  // Rescore targets the role's currently-active pairs. Inactive pairs aren't
+  // re-fetched so their score history is frozen — rescoring them just adds
+  // more rows on stale data, which isn't useful in practice.
+  const rescoreTargets = pairs.filter(p => p.active);
+  const roleId = pairs[0]?.role_id;
+  const roleName = pairs[0]?.role_name ?? 'role';
 
   async function bulk(targets: CampusRow[], active: boolean) {
     setError(null);
@@ -172,8 +183,53 @@ function BulkRoleButtons({ pairs }: { pairs: CampusRow[] }) {
     });
   }
 
+  async function rescore() {
+    if (!roleId || rescoreTargets.length === 0) return;
+    const ok = window.confirm(
+      `Rescore all ${rescoreTargets.length} active ${roleName} pair${
+        rescoreTargets.length === 1 ? '' : 's'
+      } against the current taxonomy?\n\n` +
+        `This re-runs scoring on jobs already in the database — no Job API calls, no quota spend. ` +
+        `Existing scores are preserved (immutable history); a new row is added per (job, campus). ` +
+        `Typically takes 30-90 seconds for a full role.`,
+    );
+    if (!ok) return;
+    setRescoreMsg(null);
+    setRescoring(true);
+    try {
+      const r = await fetch('/api/rescore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role_id: roleId }),
+      });
+      const data = (await r.json().catch(() => ({}))) as {
+        results?: Array<{ status?: string; jobs_scored?: number }>;
+        error?: string;
+      };
+      if (!r.ok) {
+        setRescoreMsg(`Failed: ${data.error ?? r.status}`);
+      } else {
+        const totalScored = (data.results ?? []).reduce(
+          (s, x) => s + (x.jobs_scored ?? 0),
+          0,
+        );
+        const failed = (data.results ?? []).filter(x => x.status !== 'success').length;
+        setRescoreMsg(
+          failed === 0
+            ? `Done · ${totalScored.toLocaleString()} job${totalScored === 1 ? '' : 's'} rescored`
+            : `Done · ${totalScored.toLocaleString()} rescored, ${failed} pair(s) failed`,
+        );
+        router.refresh();
+      }
+    } catch (e) {
+      setRescoreMsg(`Failed: ${e instanceof Error ? e.message : 'network error'}`);
+    } finally {
+      setRescoring(false);
+    }
+  }
+
   return (
-    <div className="flex items-center gap-2 shrink-0">
+    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
       <Button
         variant="primary"
         size="sm"
@@ -192,7 +248,22 @@ function BulkRoleButtons({ pairs }: { pairs: CampusRow[] }) {
       >
         Deactivate active ({deactivateTargets.length})
       </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={rescore}
+        disabled={rescoreTargets.length === 0 || rescoring}
+        loading={rescoring}
+        title="Re-run scoring against the current taxonomy. No Job API call; no quota spend."
+      >
+        Rescore ({rescoreTargets.length})
+      </Button>
       {error && <span className="text-xs text-orange ml-2">{error}</span>}
+      {rescoreMsg && (
+        <span className="text-xs text-gray-600 ml-2 max-w-[260px] truncate" title={rescoreMsg}>
+          {rescoreMsg}
+        </span>
+      )}
     </div>
   );
 }
