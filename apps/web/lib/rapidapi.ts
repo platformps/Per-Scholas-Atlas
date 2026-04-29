@@ -17,10 +17,38 @@ export const RAPIDAPI_HOST = 'active-jobs-db.p.rapidapi.com';
 export const RAPIDAPI_URL = `https://${RAPIDAPI_HOST}/active-ats-7d`;
 
 /**
+ * Phrases that are too generic to use as Job API title filters: they match
+ * thousands of jobs across unrelated industries (medical devices, HVAC,
+ * cleaning chemicals, auto glass, forklifts, bike share, …) and crowd out
+ * the real fiber/cable/telecom postings within the API's 100-result cap.
+ *
+ * These phrases REMAIN in the taxonomy's Tier B so that postings which come
+ * back via OTHER (more specific) filter terms can still tier-match against
+ * them post-fetch. We just don't want them ON the server-side OR expression.
+ *
+ * Diagnosed 2026-04-28 after Bronx LVFT showed only 1 qualifying posting:
+ * the title_filter was dominated by "field service technician" / "field
+ * technician" / "installation technician", which dragged in Stryker (med
+ * devices), Ecolab (cleaning chemicals), Motivate (bike share), Munters
+ * (HVAC), Safelite (auto glass), Raymond Corp (forklifts), etc.
+ */
+const TITLE_FILTER_STOPLIST: ReadonlySet<string> = new Set([
+  'field technician',
+  'field service technician',
+  'installation technician',
+  'data technician',
+]);
+
+/**
  * Build a boolean-OR title filter from Tier A + Tier B phrases of the active
  * taxonomy. Tier C/D are intentionally NOT sent to the server — see BRIEF §7
  * ("we build this from Tier A + Tier B titles only … to avoid query-string
  * noise"). C/D matches happen post-fetch via title tier scoring.
+ *
+ * Generic Tier B phrases on the stoplist (see TITLE_FILTER_STOPLIST) are
+ * excluded from the API filter to prevent non-telecom noise from crowding
+ * out specific Tier A fiber/cable jobs within the 100-result cap. They
+ * remain available for tier-matching post-fetch.
  */
 export function buildTitleFilter(taxonomy: Taxonomy): string {
   const a = taxonomy.title_tiers.A?.phrases ?? [];
@@ -32,6 +60,7 @@ export function buildTitleFilter(taxonomy: Taxonomy): string {
   for (const p of [...a, ...b]) {
     const lower = p.toLowerCase().trim();
     if (!lower || seen.has(lower)) continue;
+    if (TITLE_FILTER_STOPLIST.has(lower)) continue;
     seen.add(lower);
     phrases.push(`"${lower}"`);
   }
