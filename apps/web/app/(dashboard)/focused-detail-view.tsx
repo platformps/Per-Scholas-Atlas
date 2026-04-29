@@ -109,22 +109,38 @@ export async function FocusedDetailView({
       ((b as { score?: number }).score ?? 0) - ((a as { score?: number }).score ?? 0),
   );
 
-  // Pipeline counts
+  // Pipeline counts.
+  //
+  // H/M/L/REJECT buckets and the qualifying tile are scoped to
+  // still_active=true (or null = pre-reconciliation) so the focused view's
+  // numbers stay consistent with the campus-first leaderboard, where each
+  // role row's "qualifying" is also live-only.
+  //
+  // Without this scoping the focused view double-counted ghost postings:
+  // a job whose listing has been pulled by the source ATS but was once
+  // scored MEDIUM still showed up under "Medium 1", inflating qualifying.
+  // Discovered 2026-04-28 when Chicago × CFT showed Qualifying=2 at the
+  // focused level but Qualifying=1 on the Chicago campus-first row —
+  // same job had a Medium under taxonomy v1.1.3 and a Low under v1.1.4
+  // and only one of them was on a still-active posting.
+  const isLive = (s: ScoreRow): boolean =>
+    (s as { jobs?: { still_active?: boolean | null } }).jobs?.still_active !== false;
+  const liveLatest = latestPerJob.filter(isLive);
   const counts = {
-    HIGH: latestPerJob.filter(s => (s as { confidence: string }).confidence === 'HIGH').length,
-    MEDIUM: latestPerJob.filter(s => (s as { confidence: string }).confidence === 'MEDIUM').length,
-    LOW: latestPerJob.filter(s => (s as { confidence: string }).confidence === 'LOW').length,
-    REJECT: latestPerJob.filter(s => (s as { confidence: string }).confidence === 'REJECT').length,
+    HIGH: liveLatest.filter(s => (s as { confidence: string }).confidence === 'HIGH').length,
+    MEDIUM: liveLatest.filter(s => (s as { confidence: string }).confidence === 'MEDIUM').length,
+    LOW: liveLatest.filter(s => (s as { confidence: string }).confidence === 'LOW').length,
+    REJECT: liveLatest.filter(s => (s as { confidence: string }).confidence === 'REJECT').length,
   };
   const totalSeen = latestPerJob.length;
-  const stillActive = latestPerJob.filter(
-    s => (s as { jobs?: { still_active?: boolean | null } }).jobs?.still_active !== false,
-  ).length;
+  const stillActive = liveLatest.length;
   const qualifying = counts.HIGH + counts.MEDIUM + counts.LOW;
 
-  // Rejection breakdown
+  // Rejection breakdown — scoped to live so the bars match the H/M/L/REJECT
+  // bucket counts above. Past rejections on now-inactive postings are
+  // historical noise that doesn't help a Managing Director scope a cohort.
   const reasonCounts = new Map<string, number>();
-  for (const s of latestPerJob) {
+  for (const s of liveLatest) {
     const sr = s as { confidence: string; rejection_reason?: string | null };
     if (sr.confidence !== 'REJECT') continue;
     const key = sr.rejection_reason ?? '__below_score_threshold__';
