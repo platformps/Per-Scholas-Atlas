@@ -224,6 +224,11 @@ export default async function AdminPage() {
               healthy and see who did what. If a run failed, the error message lives in
               the right-most column.
             </li>
+            <li>
+              <strong><a href="/admin/qa" className="text-royal hover:text-navy underline-offset-2 hover:underline">QA dashboard</a></strong> —
+              cross-surface metric consistency check. Re-runs the homepage's data path
+              against an independent ground truth and flags any mismatch in red.
+            </li>
           </ul>
           <p className="text-xs text-gray-500 mt-3">
             New here? See <a href="/faq" className="text-royal hover:text-navy underline-offset-2 hover:underline">FAQ</a> for the
