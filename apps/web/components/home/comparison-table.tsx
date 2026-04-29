@@ -60,6 +60,9 @@ interface ComparisonTableProps {
   emptyMessage?: string;
   /** Show numeric rank on the left (1, 2, 3…). Useful for leaderboards. */
   ranked?: boolean;
+  /** Optional caption under the table — used to flag overlap caveats so
+   *  readers understand why row counts can exceed the unique-postings tile. */
+  footnote?: string;
 }
 
 export function ComparisonTable({
@@ -69,6 +72,7 @@ export function ComparisonTable({
   rows,
   emptyMessage = 'No data in this window yet.',
   ranked = false,
+  footnote,
 }: ComparisonTableProps) {
   return (
     <Card>
@@ -113,6 +117,11 @@ export function ComparisonTable({
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {footnote && rows.length > 0 && (
+        <div className="border-t border-gray-100 bg-gray-50 px-6 py-2.5">
+          <p className="text-[11px] text-gray-500 leading-relaxed">{footnote}</p>
         </div>
       )}
     </Card>

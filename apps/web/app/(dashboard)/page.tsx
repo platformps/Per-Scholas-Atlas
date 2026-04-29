@@ -440,6 +440,26 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     rid => `/?role=${encodeURIComponent(rid)}`,
   );
 
+  // Cross-role overlap = jobs scored under more than one role for the same
+  // campus. Same posting + same campus shows up as multiple rows, one per
+  // role. Sum of role-row "live" counts will exceed the unique-posting tile
+  // by exactly this overlap. Surfacing it under the leaderboard prevents
+  // the "576 + 856 ≠ 870, the math is broken" reaction.
+  const sumRoleLive = roleRows.reduce((s, r) => s + r.live, 0);
+  const crossRoleOverlap = sumRoleLive - overview.liveRecords;
+  const roleNote =
+    crossRoleOverlap > 0
+      ? `A posting can score under more than one role, so per-role counts will overlap. ${sumRoleLive.toLocaleString()} role-records cover ${overview.liveRecords.toLocaleString()} unique still-active postings (${crossRoleOverlap.toLocaleString()} appear under both).`
+      : undefined;
+  // Cross-campus overlap = postings within radius of more than one campus
+  // (e.g. Bronx + Newark, or Boston + Cambridge). Same logic.
+  const sumCampusLive = campusRows.reduce((s, r) => s + r.live, 0);
+  const crossCampusOverlap = sumCampusLive - overview.liveRecords;
+  const campusNote =
+    crossCampusOverlap > 0
+      ? `A posting can be within radius of more than one campus, so per-campus counts will overlap. ${sumCampusLive.toLocaleString()} campus-records cover ${overview.liveRecords.toLocaleString()} unique still-active postings (${crossCampusOverlap.toLocaleString()} appear under multiple campuses).`
+      : undefined;
+
   return (
     <AppShell
       header={
@@ -511,6 +531,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         rows={roleRows}
         ranked
         emptyMessage="No role data in this window yet."
+        footnote={roleNote}
       />
       <ComparisonTable
         title="Top campuses by opportunity volume"
@@ -519,6 +540,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         rows={campusRows}
         ranked
         emptyMessage="No campus data in this window yet."
+        footnote={campusNote}
       />
     </AppShell>
   );
