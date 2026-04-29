@@ -259,6 +259,12 @@ export default async function AdminPage() {
               cross-surface metric consistency check. Re-runs the homepage's data path
               against an independent ground truth and flags any mismatch in red.
             </li>
+            <li>
+              <strong><a href="/admin/taxonomies/diff" className="text-royal hover:text-navy underline-offset-2 hover:underline">Taxonomy diff</a></strong> —
+              compare any two taxonomy versions for a role and see exactly which phrases,
+              thresholds, or watchlist entries changed. Useful for answering &quot;what
+              actually changed in v1.1.4?&quot; without grepping commits.
+            </li>
           </ul>
           <p className="text-xs text-gray-500 mt-3">
             New here? See <a href="/faq" className="text-royal hover:text-navy underline-offset-2 hover:underline">FAQ</a> for the
