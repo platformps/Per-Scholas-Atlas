@@ -12,6 +12,7 @@
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { ComparisonTable, type ComparisonRow } from './comparison-table';
+import { PinCampusButton } from './pin-campus-button';
 
 interface CampusFirstViewProps {
   campusId: string;
@@ -24,6 +25,10 @@ interface CampusFirstViewProps {
   topEmployers: Array<[string, number]>;
   topTitles: string[];
   rows: ComparisonRow[];
+  /** Current pinned home campus id from the session — drives the
+   *  Pin/Unpin button label and whether the "View overview" link uses
+   *  the ?overview=1 escape hatch (only needed if this campus is pinned). */
+  pinnedCampusId: string | null;
 }
 
 export function CampusFirstView({
@@ -36,6 +41,7 @@ export function CampusFirstView({
   topEmployers,
   topTitles,
   rows,
+  pinnedCampusId,
 }: CampusFirstViewProps) {
   return (
     <div className="space-y-5">
@@ -46,6 +52,7 @@ export function CampusFirstView({
         windowDays={windowDays}
         totals={totals}
         lastFetchISO={lastFetchISO}
+        pinnedCampusId={pinnedCampusId}
       />
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5">
         <ComparisonTable
@@ -94,6 +101,7 @@ function ContextBanner({
   windowDays,
   totals,
   lastFetchISO,
+  pinnedCampusId,
 }: {
   campusId: string;
   campusName: string;
@@ -102,14 +110,25 @@ function ContextBanner({
   /** seen / live / qualifying mirror pipeline-stats vocab. */
   totals: { seen: number; live: number; qualifying: number; employers: number };
   lastFetchISO: string | null;
+  pinnedCampusId: string | null;
 }) {
+  // Only need the ?overview=1 escape hatch when this campus is pinned —
+  // otherwise the home filter bar's "All campuses" already lands on /
+  // and there's no auto-redirect to bypass.
+  const overviewHref = pinnedCampusId === campusId ? '/?overview=1' : '/';
   return (
     <Card>
       <div className="p-5 sm:p-6 flex flex-col lg:flex-row gap-5 lg:items-center">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1.5">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
             <Badge tone="ocean" variant="soft" size="sm">Path B · Campus first</Badge>
             <span className="text-[11px] text-gray-400 font-mono">{campusId}</span>
+            <a
+              href={overviewHref}
+              className="text-[11px] text-royal hover:text-navy underline-offset-2 hover:underline"
+            >
+              ← View overview
+            </a>
           </div>
           <h2 className="text-xl sm:text-2xl font-bold text-night tracking-tight leading-tight">
             {campusName}
@@ -119,6 +138,13 @@ function ContextBanner({
             Local labor-market view over the last {windowDays} days.{' '}
             {lastFetchISO ? <>Last fetch {formatRelative(lastFetchISO)}.</> : 'No fetches yet.'}
           </p>
+          <div className="mt-3">
+            <PinCampusButton
+              campusId={campusId}
+              campusName={campusName}
+              pinnedCampusId={pinnedCampusId}
+            />
+          </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 lg:w-[520px]">
           <Stat label="Seen" value={totals.seen} tone="neutral" />

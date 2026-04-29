@@ -27,6 +27,7 @@
 //     over the window. Per-row payload is small (~10 fields). Acceptable for
 //     a server component.
 
+import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase-server';
 import { AppShell } from '@/components/layout/app-shell';
@@ -54,16 +55,25 @@ const WINDOW_DAYS = 30;
 export const dynamic = 'force-dynamic';
 
 interface HomePageProps {
-  searchParams: { campus?: string; role?: string; confidence?: string };
+  searchParams: {
+    campus?: string;
+    role?: string;
+    confidence?: string;
+    /** When set to "1", bypass the home_campus_id auto-anchor and render
+     *  the all-campus aggregate. Used by the "View overview" link on the
+     *  campus-first banner so a pinned MD can still see the full picture. */
+    overview?: string;
+  };
 }
 
 export default async function HomePage({ searchParams }: HomePageProps) {
-  // Preserve any URL params (campus / role / confidence) through the login
-  // bounce so deep-linked dashboard URLs survive an unauthenticated visit.
+  // Preserve any URL params through the login bounce so deep-linked dashboard
+  // URLs survive an unauthenticated visit.
   const qs = new URLSearchParams();
   if (searchParams.campus) qs.set('campus', searchParams.campus);
   if (searchParams.role) qs.set('role', searchParams.role);
   if (searchParams.confidence) qs.set('confidence', searchParams.confidence);
+  if (searchParams.overview) qs.set('overview', searchParams.overview);
   const homePath = qs.toString() ? `/?${qs.toString()}` : '/';
 
   const user = await requireUser(homePath);
@@ -71,6 +81,21 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   const activeCampusId = searchParams.campus?.trim() || null;
   const activeRoleId = searchParams.role?.trim() || null;
+  const overviewOverride = searchParams.overview === '1';
+
+  // ─── Auto-anchor on the user's pinned home campus ───────────────────────
+  // If the MD has set a home campus and the URL has no campus / role / overview
+  // override, redirect into their pinned market. Saves a click per visit.
+  // The override token (`?overview=1`) is the explicit escape hatch from the
+  // campus-first banner's "View overview" link.
+  if (
+    user.homeCampusId &&
+    !activeCampusId &&
+    !activeRoleId &&
+    !overviewOverride
+  ) {
+    redirect(`/?campus=${encodeURIComponent(user.homeCampusId)}`);
+  }
 
   // ─── Reference lists (campuses + roles + active pairs) ──────────────────
   const [campusesRes, rolesRes, pairsRes] = await Promise.all([
@@ -417,6 +442,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           topEmployers={topEmployers}
           topTitles={topTitles}
           rows={compRows}
+          pinnedCampusId={user.homeCampusId}
         />
       </AppShell>
     );

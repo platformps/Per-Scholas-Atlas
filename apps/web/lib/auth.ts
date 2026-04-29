@@ -6,6 +6,9 @@ export interface SessionUser {
   email: string;
   fullName: string | null;
   role: 'admin' | 'viewer';
+  /** Pinned campus id. When set, the homepage auto-anchors on this
+   *  campus on every visit (`/` with no params → `/?campus=<id>`). */
+  homeCampusId: string | null;
 }
 
 /**
@@ -19,7 +22,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 
   const { data: profile } = await supabase
     .from('users')
-    .select('id, email, full_name, role')
+    .select('id, email, full_name, role, home_campus_id')
     .eq('id', user.id)
     .single();
 
@@ -29,6 +32,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       email: user.email ?? '',
       fullName: null,
       role: 'viewer',
+      homeCampusId: null,
     };
   }
 
@@ -37,6 +41,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     email: profile.email,
     fullName: profile.full_name,
     role: profile.role,
+    homeCampusId: (profile as { home_campus_id?: string | null }).home_campus_id ?? null,
   };
 }
 
