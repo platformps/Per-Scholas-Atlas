@@ -90,6 +90,7 @@ export function Header({ subtitle, meta, nav }: HeaderProps) {
 // ─── Nav links ──────────────────────────────────────────────────────────────
 
 import { LogOut } from 'lucide-react';
+import { UserMenu } from './user-menu';
 
 type ActivePage = 'home' | 'admin' | 'faq';
 
@@ -98,9 +99,17 @@ interface NavLinksProps {
   showAdminLink?: boolean;
   /** Which page is currently active — drives the highlighted pill. */
   active?: ActivePage;
+  /** Currently pinned home campus id from the session. Drives the
+   *  selected option in the user menu's home-campus picker. */
+  pinnedCampusId?: string | null;
 }
 
-export function NavLinks({ email, showAdminLink, active }: NavLinksProps) {
+export function NavLinks({
+  email,
+  showAdminLink,
+  active,
+  pinnedCampusId = null,
+}: NavLinksProps) {
   return (
     <>
       <div className="flex items-center gap-1">
@@ -117,7 +126,7 @@ export function NavLinks({ email, showAdminLink, active }: NavLinksProps) {
             className="hidden md:inline-block h-6 w-px bg-gray-200 mx-1"
             aria-hidden
           />
-          <UserPill email={email} />
+          <UserMenu email={email} pinnedCampusId={pinnedCampusId} />
         </>
       )}
 
@@ -159,23 +168,5 @@ function NavPill({
   );
 }
 
-// ─── User pill — initial chip + email (md+) ─────────────────────────────────
-function UserPill({ email }: { email: string }) {
-  const initial = email.trim().charAt(0).toUpperCase() || '?';
-  return (
-    <div
-      className="inline-flex items-center gap-2 rounded-sm py-1 pl-1 md:pr-3 bg-transparent"
-      title={email}
-    >
-      <span
-        aria-hidden
-        className="inline-flex items-center justify-center h-7 w-7 rounded-sm bg-royal/10 text-royal text-xs font-semibold"
-      >
-        {initial}
-      </span>
-      <span className="hidden md:inline text-sm text-gray-700 truncate max-w-[180px]">
-        {email}
-      </span>
-    </div>
-  );
-}
+// UserPill replaced by <UserMenu> (./user-menu.tsx) — same visual chrome
+// plus a click-target dropdown with a home-campus picker and sign-out.

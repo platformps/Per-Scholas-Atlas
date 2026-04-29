@@ -72,6 +72,7 @@ export default async function FAQPage() {
               email={user.email}
               active="faq"
               showAdminLink={user.role === 'admin'}
+              pinnedCampusId={user.homeCampusId}
             />
           }
         />

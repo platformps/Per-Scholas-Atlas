@@ -164,6 +164,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 email={user.email}
                 active="home"
                 showAdminLink={user.role === 'admin'}
+                pinnedCampusId={user.homeCampusId}
               />
             }
           />
@@ -323,6 +324,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 email={user.email}
                 active="home"
                 showAdminLink={user.role === 'admin'}
+                pinnedCampusId={user.homeCampusId}
               />
             }
           />
@@ -413,6 +415,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 email={user.email}
                 active="home"
                 showAdminLink={user.role === 'admin'}
+                pinnedCampusId={user.homeCampusId}
               />
             }
           />
@@ -503,6 +506,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               email={user.email}
               active="home"
               showAdminLink={user.role === 'admin'}
+              pinnedCampusId={user.homeCampusId}
             />
           }
         />

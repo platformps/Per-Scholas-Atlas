@@ -308,7 +308,14 @@ export default async function QAPage() {
         <Header
           subtitle={<span className="text-sm text-gray-500">Admin · QA</span>}
           meta="Cross-surface metric consistency"
-          nav={<NavLinks email={user.email} active="admin" showAdminLink />}
+          nav={
+            <NavLinks
+              email={user.email}
+              active="admin"
+              showAdminLink
+              pinnedCampusId={user.homeCampusId}
+            />
+          }
         />
       }
       footer={<Footer />}
