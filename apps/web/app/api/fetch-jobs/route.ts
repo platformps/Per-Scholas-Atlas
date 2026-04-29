@@ -146,14 +146,23 @@ export async function POST(request: Request) {
   }
 
   // ─── Union-based still_active reconciliation ───────────────────────
-  // Only safe when every pair succeeded — otherwise we'd be marking
-  // jobs inactive based on a partial picture (a failed pair didn't get
-  // a chance to refresh its jobs' last_seen_at, so they'd look "missing"
-  // and incorrectly flip to still_active=false). Skipping on failure is
-  // fine: the next successful cron will reconcile.
+  // Only safe when every pair succeeded AND we fetched the full active
+  // set (no campus_id / role_id filter). Two reasons we skip otherwise:
+  //
+  //   1. Failure: a partial picture would mark missing-but-not-actually-
+  //      missing jobs inactive. Next successful cron will reconcile.
+  //   2. Filter: an LVFT-only multi-fetch's seen-set has no CFT
+  //      source_ids, so the union-based reconcile would mark every
+  //      CFT job inactive. Discovered 2026-04-28 after a manual
+  //      role_id=lvft multi-fetch flipped all 1,174 CFT pairs to
+  //      still_active=false; the next CFT fetch refreshed only the
+  //      jobs that re-appeared in that fetch. Reconcile is a global
+  //      operation so it can only run on a global fetch.
   let jobsMarkedInactiveTotal = 0;
+  const filtered = Boolean(body.campus_id || body.role_id);
   const allSucceeded = results.length > 0 && results.every(r => r.status === 'success');
-  if (allSucceeded && allSeenSourceIds.size > 0) {
+  const reconcileEligible = allSucceeded && !filtered && allSeenSourceIds.size > 0;
+  if (reconcileEligible) {
     jobsMarkedInactiveTotal = await reconcileStillActive(sb, allSeenSourceIds);
   }
 
@@ -161,7 +170,14 @@ export async function POST(request: Request) {
     trigger_type: triggerType,
     pairs: pairs.length,
     jobs_marked_inactive: jobsMarkedInactiveTotal,
-    reconciliation_skipped: !allSucceeded || allSeenSourceIds.size === 0,
+    reconciliation_skipped: !reconcileEligible,
+    reconciliation_skip_reason: reconcileEligible
+      ? null
+      : !allSucceeded
+        ? 'one_or_more_pairs_failed'
+        : filtered
+          ? 'filtered_fetch'
+          : 'empty_seen_set',
     results,
   });
 }
