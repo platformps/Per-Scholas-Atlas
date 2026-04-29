@@ -168,23 +168,18 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   // ─── Otherwise pull aggregate scores for the window ─────────────────────
   // Lightweight projection — we only need fields used in tiles + comparison
-  // rows. Dedup to latest score per (job_id, campus_id) in JS.
+  // rows. Dedup to latest score per (job_id, campus_id, role_id) in JS.
+  //
+  // Paginated: Supabase / PostgREST defaults to a 1000-row max per query.
+  // The 30-day window already has ~4k score rows (50 active pairs × ~80
+  // jobs × occasional rescores) and grows with each fetch cycle. Without
+  // pagination the most-recent rescore burst dominates the response and
+  // older scores from the other role get cut off — that's how the LVFT
+  // rescore made the homepage report 'Roles 1 of 2' even though both had
+  // active scores in the window. We loop in 1k batches until a partial
+  // page comes back.
   const sinceISO = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const { data: rawScores } = await supabase
-    .from('job_scores')
-    .select(
-      `
-        job_id,
-        campus_id,
-        confidence,
-        score,
-        scored_at,
-        taxonomies:taxonomy_id ( role_id ),
-        jobs:job_id ( title, organization, still_active )
-      `,
-    )
-    .gte('scored_at', sinceISO)
-    .order('scored_at', { ascending: false });
+  const PAGE_SIZE = 1000;
 
   type RawScore = {
     job_id: string;
@@ -195,6 +190,31 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     taxonomies: { role_id: string } | { role_id: string }[] | null;
     jobs: { title: string | null; organization: string | null; still_active: boolean | null } | { title: string | null; organization: string | null; still_active: boolean | null }[] | null;
   };
+
+  const rawScores: RawScore[] = [];
+  for (let page = 0; page < 50; page++) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    const { data: pageData, error: pageErr } = await supabase
+      .from('job_scores')
+      .select(
+        `
+          job_id,
+          campus_id,
+          confidence,
+          score,
+          scored_at,
+          taxonomies:taxonomy_id ( role_id ),
+          jobs:job_id ( title, organization, still_active )
+        `,
+      )
+      .gte('scored_at', sinceISO)
+      .order('scored_at', { ascending: false })
+      .range(from, to);
+    if (pageErr || !pageData) break;
+    rawScores.push(...(pageData as unknown as RawScore[]));
+    if (pageData.length < PAGE_SIZE) break;
+  }
 
   // Dedup keyed by (job_id, campus_id, role_id) — latest scored_at wins.
   // We already ordered desc, so the first hit per key is the latest.
@@ -208,7 +228,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   // homepage's "latest" set, dropping the role count from 2 → 1.
   const seen = new Set<string>();
   const rows: ScoreWithContext[] = [];
-  for (const r of (rawScores ?? []) as RawScore[]) {
+  for (const r of rawScores) {
     const tax = Array.isArray(r.taxonomies) ? r.taxonomies[0] : r.taxonomies;
     const jb = Array.isArray(r.jobs) ? r.jobs[0] : r.jobs;
     const roleId = tax?.role_id ?? '__no_role__';
