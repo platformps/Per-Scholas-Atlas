@@ -11,6 +11,7 @@
 
 import { createClient } from '@/lib/supabase-server';
 import { JobsTable } from '@/components/jobs-table';
+import { CsvExportButton, type CsvRow } from '@/components/csv-export-button';
 import { PipelineStats } from '@/components/pipeline-stats';
 import { FetchTrend, type TrendPoint } from '@/components/fetch-trend';
 import {
@@ -33,6 +34,10 @@ interface FocusedDetailViewProps {
   roleName: string;
   windowDays: number;
   confidenceFilter: string | null;
+  /** When set, the jobs table is filtered to rows where job.organization
+   *  case-insensitively equals this value. Driven by clicking an employer
+   *  in the Top Employers panel. */
+  employerFilter: string | null;
 }
 
 export async function FocusedDetailView({
@@ -43,6 +48,7 @@ export async function FocusedDetailView({
   roleName,
   windowDays,
   confidenceFilter,
+  employerFilter,
 }: FocusedDetailViewProps) {
   const supabase = createClient();
   const sinceISO = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000).toISOString();
@@ -101,9 +107,23 @@ export async function FocusedDetailView({
     latestPerJob.push(s);
   }
 
-  const tableScoresFiltered = confidenceFilter
-    ? latestPerJob.filter(s => (s as { confidence: string }).confidence === confidenceFilter)
-    : latestPerJob;
+  // Apply confidence + employer filters in series. Employer match is
+  // case-insensitive trimmed equality — looser than substring (avoids
+  // 'A' matching 'AT&T') and tighter than fuzzy (we don't want surprises
+  // when an MD clicked a specific row).
+  const employerNorm = employerFilter?.trim().toLowerCase() ?? null;
+  let tableScoresFiltered = latestPerJob;
+  if (confidenceFilter) {
+    tableScoresFiltered = tableScoresFiltered.filter(
+      s => (s as { confidence: string }).confidence === confidenceFilter,
+    );
+  }
+  if (employerNorm) {
+    tableScoresFiltered = tableScoresFiltered.filter(s => {
+      const org = (s as { jobs?: { organization?: string | null } | null }).jobs?.organization;
+      return org ? org.trim().toLowerCase() === employerNorm : false;
+    });
+  }
   const tableScores = [...tableScoresFiltered].sort(
     (a, b) =>
       ((b as { score?: number }).score ?? 0) - ((a as { score?: number }).score ?? 0),
@@ -268,10 +288,120 @@ export async function FocusedDetailView({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <TopSkillsPanel skills={topSkills} />
-        <TopEmployersPanel employers={topEmployers} />
+        <TopEmployersPanel
+          employers={topEmployers}
+          selectedEmployer={employerFilter}
+          hrefForEmployer={org => buildFilterHref({ campusId, roleId, confidenceFilter, employer: org })}
+          clearFilterHref={buildFilterHref({ campusId, roleId, confidenceFilter, employer: null })}
+        />
+      </div>
+
+      {employerFilter && (
+        <div className="flex items-center gap-2 text-sm bg-royal/[0.06] border border-royal/20 rounded-sm px-4 py-2.5">
+          <span className="text-xs font-semibold uppercase tracking-wider text-royal">
+            Filtering
+          </span>
+          <span className="text-night">Employer = <strong>{employerFilter}</strong></span>
+          <span className="text-gray-500">·</span>
+          <span className="text-gray-600">
+            {tableScores.length} job{tableScores.length === 1 ? '' : 's'}
+          </span>
+          <a
+            href={buildFilterHref({ campusId, roleId, confidenceFilter, employer: null })}
+            className="ml-auto text-xs text-royal hover:text-navy underline-offset-2 hover:underline"
+          >
+            Clear filter
+          </a>
+        </div>
+      )}
+
+      {/* CSV export sits above the jobs table, right-aligned. The export
+          uses the SAME tableScores the table renders so any active filter
+          (confidence + employer) is reflected — "Download these 8 LOW
+          jobs at TEKsystems" is the use case the employer-filter unlocks. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <span className="text-xs text-gray-500">
+          {tableScores.length} job{tableScores.length === 1 ? '' : 's'} in table
+          {confidenceFilter ? <> · {confidenceFilter} only</> : null}
+          {employerFilter ? <> · {employerFilter} only</> : null}
+        </span>
+        <CsvExportButton
+          rows={buildCsvRows(tableScores)}
+          filename={`atlas_${campusId}_${roleId}_${formatDateForFilename()}.csv`}
+          label={`Download CSV (${tableScores.length.toLocaleString()})`}
+        />
       </div>
 
       <JobsTable scores={tableScores as never} />
     </div>
   );
+}
+
+// ─── CSV projection ─────────────────────────────────────────────────────────
+// `scores` is the deduped tableScores set; the schema is the
+// joined job_scores+jobs+taxonomies row. We accept unknown[] because
+// the precise ScoreRow type is local to the component scope and we don't
+// want to leak the join shape across the helper boundary — the indexing
+// here is only used to surface fields users would see in a CSV export.
+function buildCsvRows(scores: unknown[]): CsvRow[] {
+  return scores.map(s => {
+    const r = s as {
+      jobs?: {
+        title?: string | null;
+        organization?: string | null;
+        url?: string | null;
+        cities_derived?: string[] | null;
+        regions_derived?: string[] | null;
+        date_posted?: string | null;
+        ai_experience_level?: string | null;
+      } | null;
+      score?: number | null;
+      confidence?: string | null;
+      title_tier?: string | null;
+      title_matched?: string | null;
+      scored_at?: string | null;
+      rejection_reason?: string | null;
+    };
+    const j = r.jobs ?? null;
+    return {
+      confidence: r.confidence ?? '',
+      score: r.score ?? 0,
+      title_tier: r.title_tier ?? null,
+      title_matched: r.title_matched ?? null,
+      title: j?.title ?? '',
+      organization: j?.organization ?? '',
+      url: j?.url ?? '',
+      city: j?.cities_derived?.[0] ?? '',
+      region: j?.regions_derived?.[0] ?? '',
+      date_posted: j?.date_posted ?? '',
+      experience_level: j?.ai_experience_level ?? '',
+      scored_at: r.scored_at ?? '',
+      rejection_reason: r.rejection_reason ?? '',
+    };
+  });
+}
+
+function formatDateForFilename(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// Build a /?campus=&role=… URL preserving confidence + employer selections.
+// Pass `employer: null` to clear the employer filter while keeping campus,
+// role, and confidence intact.
+function buildFilterHref(opts: {
+  campusId: string;
+  roleId: string;
+  confidenceFilter: string | null;
+  employer: string | null;
+}): string {
+  const qs = new URLSearchParams();
+  qs.set('campus', opts.campusId);
+  qs.set('role', opts.roleId);
+  if (opts.confidenceFilter) qs.set('confidence', opts.confidenceFilter);
+  if (opts.employer) qs.set('employer', opts.employer);
+  return `/?${qs.toString()}`;
 }

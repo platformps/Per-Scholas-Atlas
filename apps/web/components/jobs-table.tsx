@@ -231,6 +231,9 @@ function JobDetail({ row, job }: { row: ScoreRow; job: JoinedJob }) {
           </div>
         </div>
       )}
+      {row.confidence !== 'REJECT' && (
+        <QualifyingReasonPanel row={row} />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div>
@@ -297,6 +300,110 @@ function JobDetail({ row, job }: { row: ScoreRow; job: JoinedJob }) {
           </a>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── "Why this is qualifying" panel ─────────────────────────────────────────
+//
+// Mirrors the REJECT-side "Why this is adjacent" panel. Surfaces the same
+// match data the score breakdown shows below, but in plain English so an
+// MD can quickly answer "is this score real?" without reading the score
+// math. Lists what tripped which gate.
+function QualifyingReasonPanel({ row }: { row: ScoreRow }) {
+  const reasons: React.ReactNode[] = [];
+  if (row.title_tier && row.title_matched) {
+    reasons.push(
+      <>
+        <strong>
+          Tier {row.title_tier}
+        </strong>{' '}
+        title match on <strong>&ldquo;{row.title_matched}&rdquo;</strong> (+
+        {row.title_score})
+      </>,
+    );
+  } else if (row.title_score > 0) {
+    reasons.push(
+      <>
+        Tier match (+{row.title_score})
+      </>,
+    );
+  }
+  if (row.core_matched.length > 0) {
+    reasons.push(
+      <>
+        <strong>{row.core_matched.length}</strong> core skill
+        {row.core_matched.length === 1 ? '' : 's'} found (+{row.core_score})
+      </>,
+    );
+  }
+  if (row.specialized_matched.length > 0) {
+    reasons.push(
+      <>
+        <strong>{row.specialized_matched.length}</strong> specialized hands-on
+        skill{row.specialized_matched.length === 1 ? '' : 's'} (+
+        {row.specialized_score})
+      </>,
+    );
+  }
+  if (row.industry_matched.length > 0) {
+    reasons.push(
+      <>
+        <strong>{row.industry_matched.length}</strong> industry-context phrase
+        {row.industry_matched.length === 1 ? '' : 's'} (+{row.industry_score})
+      </>,
+    );
+  }
+  if (row.certs_matched.length > 0) {
+    reasons.push(
+      <>
+        Cert{row.certs_matched.length === 1 ? '' : 's'} mentioned:{' '}
+        <strong>{row.certs_matched.join(', ')}</strong> (+{row.certs_score})
+      </>,
+    );
+  }
+  if (row.employer_hit) {
+    reasons.push(
+      <>
+        Employer is on the role&apos;s watchlist (+{row.employer_score})
+      </>,
+    );
+  }
+  if (row.experience_penalty > 0) {
+    reasons.push(
+      <span className="text-orange">
+        Senior-experience penalty: −{row.experience_penalty}
+      </span>,
+    );
+  }
+  return (
+    <div className="mb-5 bg-white border border-royal/20 border-l-4 border-l-royal rounded-sm p-4">
+      <div className="text-xs font-semibold uppercase tracking-wider text-royal mb-1.5">
+        Why this is qualifying
+      </div>
+      <div className="text-sm text-gray-800 mb-2">
+        Total <strong>{row.score} points</strong>. Reads as <strong>{row.confidence}</strong>{' '}
+        because it cleared{' '}
+        {row.confidence === 'HIGH' ? (
+          <>the HIGH bar (≥75)</>
+        ) : row.confidence === 'MEDIUM' ? (
+          <>the MEDIUM bar (≥50)</>
+        ) : (
+          <>the LOW bar (≥30)</>
+        )}
+        .
+      </div>
+      {reasons.length > 0 ? (
+        <ul className="text-sm text-gray-700 space-y-1 list-disc pl-5 marker:text-royal/40">
+          {reasons.map((r, i) => (
+            <li key={i}>{r}</li>
+          ))}
+        </ul>
+      ) : (
+        <div className="text-sm text-gray-500 italic">
+          Score totaled from baseline match — see the breakdown below for detail.
+        </div>
+      )}
     </div>
   );
 }

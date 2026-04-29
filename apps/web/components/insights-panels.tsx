@@ -5,9 +5,12 @@
 import { Card } from './ui/card';
 import { EmptyState } from './ui/empty-state';
 
+// Hint accepts ReactNode so panels can render a "clear filter" link in the
+// top-right slot when a filter is active. Older usage passes a plain string;
+// both are still valid.
 interface PanelShellProps {
   label: string;
-  hint?: string;
+  hint?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -64,9 +67,22 @@ export function TopSkillsPanel({ skills }: TopSkillsPanelProps) {
 // ─── Top employers ──────────────────────────────────────────────────────────
 interface TopEmployersPanelProps {
   employers: Array<[string, number]>;
+  /** When provided, each employer becomes a link to this href. Used by the
+   *  focused-detail view to filter the jobs table to a single employer. */
+  hrefForEmployer?: (org: string) => string;
+  /** The currently-applied filter, if any. Highlighted in the list and
+   *  drives a "Clear filter" link at the top of the panel. */
+  selectedEmployer?: string | null;
+  /** Href that clears the selected-employer filter. */
+  clearFilterHref?: string;
 }
 
-export function TopEmployersPanel({ employers }: TopEmployersPanelProps) {
+export function TopEmployersPanel({
+  employers,
+  hrefForEmployer,
+  selectedEmployer,
+  clearFilterHref,
+}: TopEmployersPanelProps) {
   if (employers.length === 0) {
     return (
       <PanelShell label="Top Employers">
@@ -75,14 +91,58 @@ export function TopEmployersPanel({ employers }: TopEmployersPanelProps) {
     );
   }
   return (
-    <PanelShell label="Top Employers" hint={`top ${employers.length}`}>
+    <PanelShell
+      label="Top Employers"
+      hint={
+        selectedEmployer && clearFilterHref ? (
+          <a
+            href={clearFilterHref}
+            className="text-royal hover:text-navy underline-offset-2 hover:underline"
+          >
+            clear filter
+          </a>
+        ) : (
+          `top ${employers.length}`
+        )
+      }
+    >
       <ul className="space-y-2 text-sm">
-        {employers.map(([org, count]) => (
-          <li key={org} className="flex items-center justify-between">
-            <span className="text-gray-800 truncate pr-2">{org}</span>
-            <span className="text-gray-500 tabular-nums text-xs">{count}</span>
-          </li>
-        ))}
+        {employers.map(([org, count]) => {
+          const isSelected = selectedEmployer === org;
+          const inner = (
+            <>
+              <span
+                className={`truncate pr-2 ${
+                  isSelected ? 'text-royal font-semibold' : 'text-gray-800'
+                }`}
+              >
+                {isSelected && <span className="mr-1">✓</span>}
+                {org}
+              </span>
+              <span className="text-gray-500 tabular-nums text-xs">{count}</span>
+            </>
+          );
+          if (!hrefForEmployer) {
+            return (
+              <li key={org} className="flex items-center justify-between">
+                {inner}
+              </li>
+            );
+          }
+          return (
+            <li key={org}>
+              <a
+                href={hrefForEmployer(org)}
+                className={`flex items-center justify-between rounded-sm px-1 -mx-1 hover:bg-royal/[0.06] focus:outline-none focus:ring-2 focus:ring-royal/30 transition-colors duration-150 ${
+                  isSelected ? 'bg-royal/[0.08]' : ''
+                }`}
+                title={isSelected ? 'Currently filtering' : `Filter table to ${org}`}
+              >
+                {inner}
+              </a>
+            </li>
+          );
+        })}
       </ul>
     </PanelShell>
   );

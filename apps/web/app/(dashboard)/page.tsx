@@ -59,6 +59,9 @@ interface HomePageProps {
     campus?: string;
     role?: string;
     confidence?: string;
+    /** Employer filter for the focused-detail jobs table. Set by clicking
+     *  an employer in the Top Employers panel. */
+    employer?: string;
     /** When set to "1", bypass the home_campus_id auto-anchor and render
      *  the all-campus aggregate. Used by the "View overview" link on the
      *  campus-first banner so a pinned MD can still see the full picture. */
@@ -73,6 +76,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   if (searchParams.campus) qs.set('campus', searchParams.campus);
   if (searchParams.role) qs.set('role', searchParams.role);
   if (searchParams.confidence) qs.set('confidence', searchParams.confidence);
+  if (searchParams.employer) qs.set('employer', searchParams.employer);
   if (searchParams.overview) qs.set('overview', searchParams.overview);
   const homePath = qs.toString() ? `/?${qs.toString()}` : '/';
 
@@ -187,6 +191,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           roleName={activeRole.name}
           windowDays={WINDOW_DAYS}
           confidenceFilter={searchParams.confidence?.toUpperCase() ?? null}
+          employerFilter={searchParams.employer?.trim() || null}
         />
       </AppShell>
     );
