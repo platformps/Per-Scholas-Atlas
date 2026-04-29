@@ -226,11 +226,19 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   // rescored taxonomy collapses the other one out — e.g. after a fresh
   // LVFT rescore, almost every job's CFT score disappeared from the
   // homepage's "latest" set, dropping the role count from 2 → 1.
+  // Filter to live postings: still_active=true OR null (null = pre-reconciliation,
+  // treated as active to avoid hiding fresh fetches). still_active=false means
+  // the source ATS has removed the listing — keeping these in the leaderboard
+  // inflates record counts with stale ghost postings (LVFT showed 946 records
+  // including 651 inactive; the live number was 295). The Managing Director
+  // mental model is "what's currently hireable in this market," not "what
+  // existed on this market over the last 30 days."
   const seen = new Set<string>();
   const rows: ScoreWithContext[] = [];
   for (const r of rawScores) {
     const tax = Array.isArray(r.taxonomies) ? r.taxonomies[0] : r.taxonomies;
     const jb = Array.isArray(r.jobs) ? r.jobs[0] : r.jobs;
+    if (jb?.still_active === false) continue;
     const roleId = tax?.role_id ?? '__no_role__';
     const key = `${r.job_id}|${r.campus_id}|${roleId}`;
     if (seen.has(key)) continue;
