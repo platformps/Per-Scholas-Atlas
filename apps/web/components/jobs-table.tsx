@@ -65,9 +65,13 @@ interface ScoreRow {
 
 interface JobsTableProps {
   scores: ScoreRow[];
+  /** The role context for this table (e.g. 'cft', 'lvft'). Used to phrase
+   *  role-specific messaging on REJECT rows ("description has no
+   *  data-center signal" for CFT vs "no fiber/cabling signal" for LVFT). */
+  roleId?: string;
 }
 
-export function JobsTable({ scores }: JobsTableProps) {
+export function JobsTable({ scores, roleId }: JobsTableProps) {
   if (scores.length === 0) {
     return (
       <Card>
@@ -117,7 +121,7 @@ export function JobsTable({ scores }: JobsTableProps) {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {scores.map(row => (
-              <JobRow key={row.id} row={row} />
+              <JobRow key={row.id} row={row} roleId={roleId} />
             ))}
           </tbody>
         </table>
@@ -127,7 +131,7 @@ export function JobsTable({ scores }: JobsTableProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function JobRow({ row }: { row: ScoreRow }) {
+function JobRow({ row, roleId }: { row: ScoreRow; roleId?: string }) {
   const [open, setOpen] = useState(false);
   const job = row.jobs ?? {};
   const location = formatLocation(job.cities_derived, job.regions_derived);
@@ -188,7 +192,7 @@ function JobRow({ row }: { row: ScoreRow }) {
              reason without opening the row. */}
           {row.confidence === 'REJECT' && (
             <div className="text-[11px] text-orange/80 mt-0.5 italic">
-              {humanizeRejection(row)}
+              {humanizeRejection(row, roleId)}
             </div>
           )}
         </td>
@@ -472,16 +476,27 @@ function ChipBlock({
 }
 
 // Translate a raw rejection_reason (or its absence) into a one-line hint
-// the MD can read without expanding the row. Specifically tackles the
-// reviewer-flagged pattern: 'Field Technician at 0 points looks relevant'
-// — the row is rejected because the JD doesn't have telecom/fiber/cabling
-// vocabulary, even though the title alone seems promising.
-function humanizeRejection(row: ScoreRow): string {
+// the MD can read without expanding the row.
+//
+// roleId-aware: each role's industry-context vocab is different ("fiber/
+// cabling/low-voltage" for LVFT, "data center / mission critical" for
+// CFT). The previous version hardcoded LVFT vocab and leaked onto CFT
+// rows — the lookup below scopes the phrasing to the active role and
+// falls back to a generic "curriculum-aligned" string for any future
+// role we haven't enumerated yet.
+const ROLE_INDUSTRY_VOCAB: Record<string, string> = {
+  lvft: 'fiber, cabling, or low-voltage',
+  cft: 'data center, mission-critical, or hyperscale',
+};
+
+function humanizeRejection(row: ScoreRow, roleId?: string): string {
   const r = row.rejection_reason;
   if (r) return r;
+  const vocab =
+    (roleId && ROLE_INDUSTRY_VOCAB[roleId]) ?? 'curriculum-aligned';
   // No explicit reason: the score didn't clear the LOW threshold.
   if (row.title_tier && row.title_score === 0) {
-    return 'Title matched but description has no fiber/cabling/low-voltage industry signal';
+    return `Title matched but description has no ${vocab} industry signal`;
   }
   if (row.title_score > 0 && row.score < 30) {
     return `Below qualifying threshold — ${row.score} pts, needs 30 (no curriculum-aligned skills or watchlist hit)`;

@@ -332,7 +332,7 @@ export async function FocusedDetailView({
         />
       </div>
 
-      <JobsTable scores={tableScores as never} />
+      <JobsTable scores={tableScores as never} roleId={roleId} />
     </div>
   );
 }
