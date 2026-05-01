@@ -31,6 +31,15 @@ import {
   rawJobToDbRow,
 } from '@/lib/rapidapi';
 import {
+  buildTheirStackTitleFilter,
+  buildTheirStackLocationFilter,
+  fetchAllTheirStackJobs,
+  normalizeTheirStackJob,
+  theirStackJobToDbRow,
+  type TheirStackQuotaSnapshot,
+} from '@/lib/theirstack';
+import type { JobPayload } from '@per-scholas/scoring';
+import {
   loadActivePairs,
   loadActiveTaxonomy,
   scoreResultToRow,
@@ -71,6 +80,12 @@ interface PairResult {
   jobs_updated?: number;
   jobs_marked_inactive?: number;
   scores_computed?: number;
+  /** Per-source raw counts (pre-dedup). Populated only on success. */
+  raw_counts?: Record<string, number>;
+  /** Per-source counts in the deduped post-merge result. */
+  per_source_counts?: Record<string, number>;
+  /** Number of jobs dropped during cross-source URL dedup. */
+  deduped_drops?: number;
   error?: string;
 }
 
@@ -315,25 +330,117 @@ async function runPair(
   const fetchRunId = (runIns as { id: string }).id;
 
   try {
-    // RapidAPI fetch
-    const { rawJobs, quota } = await fetchAllActiveJobs({
+    // ─── Fan out across enabled data sources ────────────────────────
+    //
+    // Each source returns its own raw shape; we normalize per-source
+    // into the unified JobPayload + DB-row form. The shared collection
+    // lets us dedupe by URL across sources and run a single upsert +
+    // score pass downstream — Active Jobs DB jobs and TheirStack jobs
+    // get the same scoring + storage treatment.
+    //
+    // Active Jobs DB always runs (RAPIDAPI_KEY required for the project
+    // to be operational). TheirStack runs only when its API key is set,
+    // so the source can be turned on/off via Vercel env without code.
+    interface SourcedJob {
+      raw: unknown;
+      payload: JobPayload | null;
+      dbRow: Record<string, unknown> | null;
+      source: 'active-jobs-db' | 'theirstack';
+    }
+    const collected: SourcedJob[] = [];
+    const sourcesAttempted: string[] = [];
+    const sourcesFailed: { source: string; error: string }[] = [];
+
+    // ── Source 1: Active Jobs DB ──
+    sourcesAttempted.push('active-jobs-db');
+    const { rawJobs: ajdJobs, quota } = await fetchAllActiveJobs({
       titleFilter,
       locationFilter,
       pageSize: 100,
       maxTotal: MAX_PER_PAIR,
     });
+    for (const raw of ajdJobs) {
+      collected.push({
+        raw,
+        payload: normalizeApiJob(raw),
+        dbRow: rawJobToDbRow(raw),
+        source: 'active-jobs-db',
+      });
+    }
 
-    // Upsert jobs. Source_ids accumulate into BOTH the per-pair set
-    // (which we don't currently expose, but kept for clarity) and the
-    // cron-wide accumulator the parent uses for union reconciliation.
+    // ── Source 2: TheirStack (only if env var is set) ──
+    let theirStackQuota: TheirStackQuotaSnapshot = { api_credits_remaining: null };
+    let theirStackRawCount = 0;
+    const theirStackKey = process.env.THEIRSTACK_API_KEY;
+    if (theirStackKey) {
+      sourcesAttempted.push('theirstack');
+      try {
+        const { rawJobs: tsJobs, quota: tsQuota } = await fetchAllTheirStackJobs({
+          titlePhrases: buildTheirStackTitleFilter(taxonomy),
+          locationPattern: buildTheirStackLocationFilter(campus),
+          pageSize: 100,
+          maxTotal: MAX_PER_PAIR,
+          apiKey: theirStackKey,
+        });
+        theirStackQuota = tsQuota;
+        theirStackRawCount = tsJobs.length;
+        for (const raw of tsJobs) {
+          collected.push({
+            raw,
+            payload: normalizeTheirStackJob(raw),
+            dbRow: theirStackJobToDbRow(raw),
+            source: 'theirstack',
+          });
+        }
+      } catch (e) {
+        // Don't fail the whole pair if TheirStack errors — log it and
+        // continue with Active Jobs DB results only. The pair is still
+        // considered successful so the cron-level reconcile can proceed.
+        const msg = e instanceof Error ? e.message : 'unknown';
+        sourcesFailed.push({ source: 'theirstack', error: msg });
+        console.error(`[fetch-jobs] TheirStack failed for ${campus.id}/${role.id}: ${msg}`);
+      }
+    }
+
+    // ─── Cross-source dedup by URL ──────────────────────────────────
+    //
+    // The same posting can appear in both sources (especially when
+    // TheirStack picks up an Indeed mirror of an ATS post that Active
+    // Jobs DB also crawls). First source wins — Active Jobs DB always
+    // iterates first, so a posting in both is tagged 'active-jobs-db'.
+    // Net effect: TheirStack adds the genuinely-new postings (small/mid
+    // contractors, direct-Indeed posts) without duplicating ATS jobs.
+    const seenUrls = new Set<string>();
+    const deduped: SourcedJob[] = [];
+    let dedupedCount = 0;
+    for (const j of collected) {
+      const url = j.payload?.url;
+      if (url) {
+        const norm = url.trim().toLowerCase();
+        if (seenUrls.has(norm)) {
+          dedupedCount++;
+          continue;
+        }
+        seenUrls.add(norm);
+      }
+      deduped.push(j);
+    }
+
+    // Per-source counts in the deduped (post-merge) result. Useful for
+    // /admin/qa to confirm each source is contributing.
+    const perSourceCounts: Record<string, number> = {};
+    for (const j of deduped) {
+      perSourceCounts[j.source] = (perSourceCounts[j.source] ?? 0) + 1;
+    }
+
+    // ─── Upsert all deduped jobs ────────────────────────────────────
     let jobsNew = 0;
     let jobsUpdated = 0;
     const jobIdBySourceId = new Map<string, string>();
 
-    for (const raw of rawJobs) {
-      const dbRow = rawJobToDbRow(raw);
-      if (!dbRow) continue;
-      const sid = dbRow.source_id as string;
+    for (const j of deduped) {
+      if (!j.dbRow) continue;
+      const sid = j.dbRow.source_id as string;
       allSeenSourceIds.add(sid);
 
       const { data: existing } = await sb
@@ -350,10 +457,10 @@ async function runPair(
           .update({
             last_seen_at: new Date().toISOString(),
             still_active: true,
-            description_text: dbRow.description_text ?? null,
-            ai_key_skills: dbRow.ai_key_skills ?? null,
-            ai_experience_level: dbRow.ai_experience_level ?? null,
-            raw_payload: dbRow.raw_payload ?? null,
+            description_text: j.dbRow.description_text ?? null,
+            ai_key_skills: j.dbRow.ai_key_skills ?? null,
+            ai_experience_level: j.dbRow.ai_experience_level ?? null,
+            raw_payload: j.dbRow.raw_payload ?? null,
           })
           .eq('id', id);
         jobIdBySourceId.set(sid, id);
@@ -361,7 +468,7 @@ async function runPair(
       } else {
         const { data: inserted } = await sb
           .from('jobs')
-          .insert(dbRow)
+          .insert(j.dbRow)
           .select('id')
           .single();
         const id = (inserted as { id: string } | null)?.id;
@@ -370,19 +477,15 @@ async function runPair(
       }
     }
 
-    // (Per-pair still_active reconciliation moved to the parent route
-    // handler — see reconcileStillActive() at the bottom of this file.)
-
-    // Score every job we saw + insert immutable job_scores row
+    // ─── Score all deduped jobs ─────────────────────────────────────
     const campusCtx = makeCampusContext(campus);
 
     let scoresComputed = 0;
-    for (const raw of rawJobs) {
-      const payload = normalizeApiJob(raw);
-      if (!payload) continue;
-      const jobUuid = jobIdBySourceId.get(payload.id);
+    for (const j of deduped) {
+      if (!j.payload) continue;
+      const jobUuid = jobIdBySourceId.get(j.payload.id);
       if (!jobUuid) continue; // upsert failed; skip
-      const result = scoreJob(payload, taxonomy, campusCtx);
+      const result = scoreJob(j.payload, taxonomy, campusCtx);
       await sb.from('job_scores').insert(scoreResultToRow(result, {
         job_id: jobUuid,
         taxonomy_id: taxonomyRow.id,
@@ -392,26 +495,48 @@ async function runPair(
       scoresComputed++;
     }
 
+    const totalRawJobs = ajdJobs.length + theirStackRawCount;
+
     // Close fetch_run. `jobs_marked_inactive` is now reconciled at the
     // cron level (after all pairs run) — per-pair is always 0 because
     // any single pair only sees its own slice of the world.
+    //
+    // jobs_returned reflects the deduped post-merge count, which is
+    // what we actually scored. The pre-dedup raw counts go into
+    // query_params for forensic visibility.
     await sb
       .from('fetch_runs')
       .update({
         status: 'success',
         completed_at: new Date().toISOString(),
         duration_ms: Date.now() - startedAt,
-        jobs_returned: rawJobs.length,
+        jobs_returned: deduped.length,
         jobs_new: jobsNew,
         jobs_updated: jobsUpdated,
         jobs_marked_inactive: 0,
         scores_computed: scoresComputed,
         quota_jobs_remaining: quota.jobs_remaining,
         quota_requests_remaining: quota.requests_remaining,
+        query_params: {
+          title_filter: titleFilter,
+          location_filter: locationFilter,
+          sources_attempted: sourcesAttempted,
+          sources_failed: sourcesFailed,
+          per_source_counts: perSourceCounts,
+          raw_counts: {
+            'active-jobs-db': ajdJobs.length,
+            theirstack: theirStackRawCount,
+          },
+          deduped_drops: dedupedCount,
+          theirstack_credits_remaining: theirStackQuota.api_credits_remaining,
+        },
       })
       .eq('id', fetchRunId);
 
-    // Record quota snapshot
+    // Record Active Jobs DB quota snapshot. TheirStack quota lives in
+    // query_params above — the api_usage table is shaped around the
+    // RapidAPI quota model and we don't want to retrofit it for a second
+    // pricing structure (TheirStack uses credits, not requests/jobs).
     await sb.from('api_usage').insert({
       jobs_remaining: quota.jobs_remaining,
       requests_remaining: quota.requests_remaining,
@@ -432,7 +557,8 @@ async function runPair(
         metadata: {
           campus_id: campus.id,
           role_id: role.id,
-          jobs_returned: rawJobs.length,
+          jobs_returned: deduped.length,
+          per_source_counts: perSourceCounts,
         },
       });
     }
@@ -442,11 +568,17 @@ async function runPair(
       role_id: role.id,
       status: 'success',
       fetch_run_id: fetchRunId,
-      jobs_returned: rawJobs.length,
+      jobs_returned: deduped.length,
       jobs_new: jobsNew,
       jobs_updated: jobsUpdated,
       jobs_marked_inactive: 0, // reconciled at cron level after all pairs
       scores_computed: scoresComputed,
+      raw_counts: {
+        'active-jobs-db': ajdJobs.length,
+        theirstack: theirStackRawCount,
+      },
+      per_source_counts: perSourceCounts,
+      deduped_drops: dedupedCount,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
