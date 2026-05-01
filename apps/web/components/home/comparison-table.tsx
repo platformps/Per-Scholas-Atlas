@@ -104,7 +104,23 @@ export function ComparisonTable({
                 <th className="px-3 py-2.5 text-right w-[88px]">Qualifying</th>
                 <th className="px-3 py-2.5 text-right w-[80px]">Employers</th>
                 <th className="px-3 py-2.5 text-left min-w-[200px]">Top titles</th>
-                <th className="px-6 py-2.5 text-left w-[160px]">Market signal</th>
+                <th className="px-6 py-2.5 text-left w-[160px]">
+                  <span
+                    title={
+                      'Share of currently-active jobs scoring HIGH/MEDIUM/LOW.\n\n' +
+                      '• Strong  ≥ 70% qualifying\n' +
+                      '• Healthy 50–69%\n' +
+                      '• Mixed   30–49%\n' +
+                      '• Light   15–29%\n' +
+                      '• Sparse  < 15%\n\n' +
+                      'The mini-bar shows the H/M/L mix; gray = ADJACENT (not qualifying). ' +
+                      'Read it as "of the postings live in this market, how many are placement-ready?"'
+                    }
+                    className="cursor-help border-b border-dotted border-gray-400 hover:border-gray-600"
+                  >
+                    Market signal
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -255,9 +271,12 @@ function MarketSignal({
     pct >= 30 ? 'Mixed' :
     pct >= 15 ? 'Light' :
                 'Sparse';
+  const tip =
+    `${qualifying} of ${total} qualifying (${Math.round(pct)}%) — ${label}\n` +
+    `HIGH ${buckets.HIGH} · MEDIUM ${buckets.MEDIUM} · LOW ${buckets.LOW} · ADJACENT ${buckets.REJECT}`;
   return (
-    <div className="flex flex-col gap-1.5 min-w-[120px]">
-      <div className="flex h-1.5 rounded-sm overflow-hidden bg-gray-100" title={`${qualifying} of ${total} qualifying`}>
+    <div className="flex flex-col gap-1.5 min-w-[120px]" title={tip}>
+      <div className="flex h-1.5 rounded-sm overflow-hidden bg-gray-100">
         {buckets.HIGH > 0 && (
           <div className="bg-royal" style={{ width: `${(buckets.HIGH / total) * 100}%` }} />
         )}
@@ -268,7 +287,9 @@ function MarketSignal({
           <div className="bg-yellow" style={{ width: `${(buckets.LOW / total) * 100}%` }} />
         )}
       </div>
-      <div className="text-[11px] text-gray-500 leading-tight">{label}</div>
+      <div className="text-[11px] text-gray-500 leading-tight">
+        {label} <span className="text-gray-400">· {Math.round(pct)}%</span>
+      </div>
     </div>
   );
 }

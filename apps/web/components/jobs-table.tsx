@@ -180,6 +180,17 @@ function JobRow({ row }: { row: ScoreRow }) {
               ) : null}
             </div>
           )}
+          {/* Inline rejection-reason hint for ADJACENT rows. The full
+             "Why this is adjacent" panel still lives in the expand
+             drawer, but surfacing the one-liner here saves the
+             reviewer-pattern question of "why is this 'Field
+             Technician' showing as 0 points?" — they can read the
+             reason without opening the row. */}
+          {row.confidence === 'REJECT' && (
+            <div className="text-[11px] text-orange/80 mt-0.5 italic">
+              {humanizeRejection(row)}
+            </div>
+          )}
         </td>
         <td className="px-3 py-3 align-top text-sm text-gray-700 truncate max-w-0">
           <span className="truncate inline-block max-w-full align-bottom">
@@ -458,6 +469,24 @@ function ChipBlock({
       )}
     </div>
   );
+}
+
+// Translate a raw rejection_reason (or its absence) into a one-line hint
+// the MD can read without expanding the row. Specifically tackles the
+// reviewer-flagged pattern: 'Field Technician at 0 points looks relevant'
+// — the row is rejected because the JD doesn't have telecom/fiber/cabling
+// vocabulary, even though the title alone seems promising.
+function humanizeRejection(row: ScoreRow): string {
+  const r = row.rejection_reason;
+  if (r) return r;
+  // No explicit reason: the score didn't clear the LOW threshold.
+  if (row.title_tier && row.title_score === 0) {
+    return 'Title matched but description has no fiber/cabling/low-voltage industry signal';
+  }
+  if (row.title_score > 0 && row.score < 30) {
+    return `Below qualifying threshold — ${row.score} pts, needs 30 (no curriculum-aligned skills or watchlist hit)`;
+  }
+  return 'Below qualifying threshold';
 }
 
 function formatLocation(cities?: string[] | null, regions?: string[] | null): string {
