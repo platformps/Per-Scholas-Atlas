@@ -28,9 +28,15 @@ interface SourceStatus {
   detail: string;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   await requireAdmin();
+  // ?probe=true returns the first raw job from each source's live ping so
+  // we can inspect the response shape when wiring up new adapters. Admin-
+  // only and one-off — adds 1 API credit on TheirStack per call.
+  const url = new URL(request.url);
+  const probe = url.searchParams.get('probe') === 'true';
   const results: SourceStatus[] = [];
+  const samples: Record<string, unknown> = {};
 
   // ─── Active Jobs DB ────────────────────────────────────────────────
   results.push({
@@ -71,10 +77,12 @@ export async function GET() {
       });
       const status = r.status;
       if (status >= 200 && status < 300) {
-        const data = (await r.json().catch(() => ({}))) as {
-          metadata?: { total_results?: number };
-        };
-        const total = data?.metadata?.total_results ?? null;
+        const data = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+        const total =
+          (data as { metadata?: { total_results?: number } })?.metadata?.total_results ??
+          (data as { total_results?: number })?.total_results ??
+          (data as { total?: number })?.total ??
+          null;
         results.push({
           source: 'theirstack',
           configured: true,
@@ -84,6 +92,22 @@ export async function GET() {
               ? `Live ping OK (${status}). Sample query "fiber technician" matched ${total.toLocaleString()} jobs.`
               : `Live ping OK (${status}). Response shape unfamiliar but call succeeded.`,
         });
+        if (probe) {
+          // Dump top-level keys + first job (if present) so we can write the
+          // adapter against actual response shape rather than guessing.
+          const topLevelKeys = Object.keys(data);
+          const dataField =
+            (data as { data?: unknown[] })?.data ??
+            (data as { jobs?: unknown[] })?.jobs ??
+            (data as { results?: unknown[] })?.results ??
+            null;
+          const firstJob = Array.isArray(dataField) && dataField.length > 0 ? dataField[0] : null;
+          samples.theirstack = {
+            top_level_keys: topLevelKeys,
+            sample_total_results: total,
+            first_job: firstJob,
+          };
+        }
       } else {
         const body = await r.text().catch(() => '');
         results.push({
@@ -103,5 +127,5 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ sources: results });
+  return NextResponse.json(probe ? { sources: results, samples } : { sources: results });
 }
