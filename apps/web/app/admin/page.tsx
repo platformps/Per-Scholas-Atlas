@@ -500,18 +500,22 @@ function formatTime(iso: string | null | undefined): string {
 // Renders a single-row card at the top of the admin page showing:
 //   • Last successful scheduled fetch (relative + absolute)
 //   • Next scheduled run (Mon/Wed/Fri 9am ET)
-//   • Orange warning chip if it's been >36h since the last successful cron
+//   • Orange warning chip if the cron has missed its NEXT expected slot
 //
-// 36h is the threshold because the longest gap in a healthy MWF cadence is
-// Friday → Monday (~72h). But in practice we expect the cron to fire within
-// 24h of the last (Mon→Wed and Wed→Fri are both 48h). 36h represents "we've
-// missed at least one expected slot" — a reasonable point to alert.
+// "Stale" used to be a fixed 36-hour threshold, but that flagged every
+// Thursday and weekend as broken because the natural MWF gaps are:
+//   Mon → Wed = 48h
+//   Wed → Fri = 48h
+//   Fri → Mon = 72h
+// All longer than 36h. The fix: compute the next-expected cron time forward
+// from the LAST successful run and only flag stale if we're past that with
+// a small grace buffer (real cron jitter can land 30–60min late).
 //
 // Definition of "scheduled": fetch_runs.trigger_type='scheduled' (the cron
 // path). Manual fetches don't count toward heartbeat — admins might not run
 // them on a cadence and we shouldn't paper over a stalled cron with manual
 // work.
-const CRON_STALE_HOURS = 36;
+const CRON_GRACE_HOURS = 4;
 // Cron schedule: Mon/Wed/Fri at 9am ET. In Date-of-week terms: 1, 3, 5.
 const CRON_DAYS_OF_WEEK = [1, 3, 5];
 
@@ -519,7 +523,19 @@ function CronFreshness({ lastCronISO }: { lastCronISO: string | null }) {
   const now = new Date();
   const last = lastCronISO ? new Date(lastCronISO) : null;
   const ageHours = last ? (now.valueOf() - last.valueOf()) / 36e5 : null;
-  const stale = ageHours == null || ageHours > CRON_STALE_HOURS;
+
+  // Schedule-aware staleness: compute the next expected cron time forward
+  // from the LAST successful cron, then check if we've passed that plus the
+  // grace buffer. Catches "we missed Friday's run" without false-firing on
+  // every Thursday during a healthy Wed→Fri gap.
+  const nextExpectedFromLast = last ? nextCronET(last) : null;
+  const stale =
+    last == null ||
+    nextExpectedFromLast == null ||
+    now.valueOf() > nextExpectedFromLast.valueOf() + CRON_GRACE_HOURS * 36e5;
+
+  // The "Next scheduled" pill in the header always shows the next upcoming
+  // cron time relative to NOW (regardless of staleness).
   const next = nextCronET(now);
 
   return (
@@ -596,7 +612,11 @@ function nextCronET(from: Date): Date {
 }
 
 function formatNextCron(d: Date): string {
-  return d.toLocaleString('en-US', {
+  // nextCronET iterates in 1-hour steps starting from `from`, so the returned
+  // timestamp's minutes inherit from `from`'s minutes (e.g. 9:09 if we
+  // iterated from a 5:09pm reference). The actual cron is scheduled at
+  // exactly 9:00am ET; replace the minute slot so the display reads cleanly.
+  const formatted = d.toLocaleString('en-US', {
     timeZone: 'America/New_York',
     weekday: 'short',
     month: 'short',
@@ -605,6 +625,7 @@ function formatNextCron(d: Date): string {
     minute: '2-digit',
     timeZoneName: 'short',
   });
+  return formatted.replace(/(\b9):\d{2}/, '$1:00');
 }
 
 interface RunRow {
