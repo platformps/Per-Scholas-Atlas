@@ -62,7 +62,7 @@ A trigger on `auth.users` insert populates this row automatically. Two emails (`
 
 | Column | Type | Notes |
 |---|---|---|
-| `id` | text PK | slug e.g. `atlanta`, `bronx` |
+| `id` | text PK | slug e.g. `atlanta`, `new_york_city` |
 | `name` | text | display name |
 | `address`, `city`, `state`, `postal_code` | text | |
 | `lat`, `lng` | double precision | for geofencing |

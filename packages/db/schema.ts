@@ -24,7 +24,7 @@ export const users = pgTable('users', {
 // CAMPUSES — all Per Scholas locations
 // ============================================================================
 export const campuses = pgTable('campuses', {
-  id: text('id').primaryKey(), // slug e.g. 'atlanta', 'bronx'
+  id: text('id').primaryKey(), // slug e.g. 'atlanta', 'new_york_city'
   name: text('name').notNull(),
   address: text('address').notNull(),
   city: text('city').notNull(),

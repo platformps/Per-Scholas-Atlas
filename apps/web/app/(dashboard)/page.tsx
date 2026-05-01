@@ -486,7 +486,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       ? `A posting can score under more than one role, so per-role counts will overlap. ${sumRoleLive.toLocaleString()} role-records cover ${overview.liveRecords.toLocaleString()} unique still-active postings (${crossRoleOverlap.toLocaleString()} appear under both).`
       : undefined;
   // Cross-campus overlap = postings within radius of more than one campus
-  // (e.g. Bronx + Newark, or Boston + Cambridge). Same logic.
+  // (e.g. New York City + Newark, or Boston + Cambridge). Same logic.
   const sumCampusLive = campusRows.reduce((s, r) => s + r.live, 0);
   const crossCampusOverlap = sumCampusLive - overview.liveRecords;
   const campusNote =

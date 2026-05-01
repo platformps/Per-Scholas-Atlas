@@ -17,8 +17,9 @@ export interface CampusRow {
   /**
    * Optional override for the Job API location_filter. Used for campuses
    * whose office city is a poor proxy for the metro labor market — e.g.
-   * Bronx → "New York", Cambridge → "Boston", Menlo Park → "San Francisco",
-   * Silver Spring → "Washington". Falls back to `city` when null.
+   * Brooklyn (new_york_city campus) → "New York", Cambridge → "Boston",
+   * Menlo Park → "San Francisco", Silver Spring → "Washington". Falls
+   * back to `city` when null.
    */
   metro_label: string | null;
   lat: number;

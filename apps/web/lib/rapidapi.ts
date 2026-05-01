@@ -70,7 +70,7 @@ const US_STATE_NAMES: Record<string, string> = {
  * server-side filter just needs decent recall in the right metro.
  *
  * `metro_label` override: a campus's office city is sometimes a poor
- * proxy for the metro labor market (the Bronx campus is in "Bronx, NY"
+ * proxy for the metro labor market (the NYC campus is in "Brooklyn, NY"
  * but most NYC fiber jobs are indexed as "New York, New York";
  * Cambridge MA→Boston, Menlo Park CA→San Francisco, Silver Spring MD→
  * Washington DC, etc.). When `metro_label` is set we use that instead

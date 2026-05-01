@@ -36,7 +36,7 @@
 - **One active campus**: Atlanta (233 Peachtree St NE, Suite 650, Atlanta, GA 30303 — lat 33.7596, lng -84.3880)
 - **One active role**: Critical Facilities Technician (CFT, internal course code UCI 2137)
 - **Search radius**: 100 miles from Atlanta address
-- **All 17 campuses are seeded in the database** (Atlanta, Baltimore, Boston, Bronx, Charlotte, Chicago, Cincinnati, Columbus, Dallas, Denver, Detroit, Newark, Philadelphia, Phoenix, Seattle, St-Louis, Washington-DC) but only the Atlanta-CFT pairing has `active=true` for v1.
+- **All 17 campuses are seeded in the database** (Atlanta, Baltimore, Boston, Charlotte, Chicago, Cincinnati, Columbus, Dallas, Denver, Detroit, Newark, New York City, Philadelphia, Phoenix, Seattle, St-Louis, Washington-DC) but only the Atlanta-CFT pairing has `active=true` for v1. (The 'new_york_city' campus consolidates the previously-separate Bronx and Brooklyn rows; see migration 0004_merge_nyc.sql.)
 
 ### Auth model
 - Google OAuth via Supabase Auth — anyone with any Gmail or Google Workspace account can sign in.
@@ -61,7 +61,7 @@
 - Re-score UI button (engine works, button is stubbed)
 - Trend / longitudinal views ("show me CFT demand over the last 6 months")
 - Slack / email alerting on quota warnings or fetch failures
-- Multi-campus rollout (Charlotte, DC, Bronx, etc. come in Phase 2 once we validate Atlanta)
+- Multi-campus rollout (Charlotte, DC, New York City, etc. come in Phase 2 once we validate Atlanta)
 - Additional roles (Cybersecurity Analyst, Cloud Practitioner, etc. come after CFT validation)
 
 ---

@@ -54,8 +54,8 @@ export function buildTheirStackTitleFilter(taxonomy: Taxonomy): string[] {
  * scoreJob handles the precision against the campus's lat/lng.
  *
  * `metro_label` override mirrors the Active Jobs DB campus fix:
- * Bronx → "New York", Cambridge → "Boston", Menlo Park → "San
- * Francisco", Silver Spring → "Washington".
+ * Brooklyn (new_york_city campus) → "New York", Cambridge → "Boston",
+ * Menlo Park → "San Francisco", Silver Spring → "Washington".
  */
 export function buildTheirStackLocationFilter(campus: {
   city: string;

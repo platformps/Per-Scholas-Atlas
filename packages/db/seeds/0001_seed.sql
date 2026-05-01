@@ -16,7 +16,11 @@ INSERT INTO campuses (id, name, address, city, state, lat, lng, default_radius_m
   ('atlanta',           'Per Scholas Atlanta',                  '233 Peachtree St NE, Suite 650, Atlanta, GA 30303',                'Atlanta',       'GA', 33.7596, -84.3880, 100, TRUE),
   ('baltimore',         'Per Scholas Baltimore',                '509 South Exeter Street, Suite 220, Baltimore, MD 21202',          'Baltimore',     'MD', 39.2843, -76.6021,  50, TRUE),
   ('boston',            'Per Scholas Greater Boston',           '255 Main Street, 8th Floor, Cambridge, MA 02142',                  'Cambridge',     'MA', 42.3623, -71.0843,  50, TRUE),
-  ('bronx',             'Per Scholas Bronx',                    '804 E 138th St #2, Bronx, NY 10454',                               'Bronx',         'NY', 40.8125, -73.9097,  50, TRUE),
+  -- 'new_york_city' merges the prior Bronx + Brooklyn campuses (see
+  -- migration 0004_merge_nyc.sql). Brooklyn address used because that's
+  -- the operational HQ Per Scholas surfaces to MDs. Default radius
+  -- bumped to 100mi (was 50) to cover the full metro including NJ/CT/LI.
+  ('new_york_city',     'Per Scholas New York City',            '630 Flushing Ave, Brooklyn, NY 11206',                             'Brooklyn',      'NY', 40.7008, -73.9432, 100, TRUE),
   ('buffalo',           'Per Scholas Buffalo',                  '726 Exchange St., Suite 610, Buffalo, NY 14210',                   'Buffalo',       'NY', 42.8826, -78.8723,  50, TRUE),
   ('charlotte',         'Per Scholas Charlotte',                '129 West Trade St, Suite 1210, Charlotte, NC 28208',               'Charlotte',     'NC', 35.2272, -80.8430,  50, TRUE),
   ('chicago',           'Per Scholas Chicago',                  '200 W. Monroe, Suite 1401, Chicago, IL 60606',                     'Chicago',       'IL', 41.8807, -87.6326,  50, TRUE),
@@ -45,10 +49,13 @@ ON CONFLICT (id) DO NOTHING;
 
 -- NOTE: For changes after seed (address corrections, new markets, etc.), edit
 -- this file AND apply the same change to the live DB via the admin UI or SQL.
--- Multi-site markets (NYC has Bronx + 2 Brooklyn + Staten Island; LA has main +
--- Boyle Heights; Pittsburgh has main + Glassport; Cincinnati has main + Covington
--- KY; Bay Area is Menlo Park) are collapsed to one row per market because
--- per-site geofences fully overlap and would just duplicate fetches.
+-- Multi-site markets (NYC's five boroughs + Long Island + Staten Island; LA
+-- has main + Boyle Heights; Pittsburgh has main + Glassport; Cincinnati has
+-- main + Covington KY; Bay Area is Menlo Park) are collapsed to one row per
+-- market because per-site geofences fully overlap and would just duplicate
+-- fetches. NYC specifically: 'new_york_city' uses the Brooklyn HQ address
+-- with a 100mi radius covering all five boroughs + Newark + Long Island +
+-- the close NJ/CT suburbs that Per Scholas grads commute into.
 
 -- ============================================================================
 -- Roles
@@ -74,7 +81,7 @@ INSERT INTO campus_roles (campus_id, role_id, active, notes) VALUES
   ('atlanta', 'cft', TRUE, 'v1 launch role. Activate other campuses by setting active=TRUE here or via admin UI.'),
   ('baltimore', 'cft', FALSE, 'Add when ready'),
   ('boston', 'cft', FALSE, 'Add when ready'),
-  ('bronx', 'cft', FALSE, 'Add when ready'),
+  ('new_york_city', 'cft', FALSE, 'Add when ready'),
   ('buffalo', 'cft', FALSE, 'Add when ready'),
   ('charlotte', 'cft', FALSE, 'Add when ready'),
   ('chicago', 'cft', FALSE, 'Add when ready'),

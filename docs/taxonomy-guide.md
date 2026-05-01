@@ -285,7 +285,7 @@ VALUES (
 -- Activate it for whatever campuses run it.
 INSERT INTO public.campus_roles (campus_id, role_id, active) VALUES
   ('atlanta', 'csa', true),
-  ('bronx',   'csa', true)
+  ('new_york_city', 'csa', true)
 ON CONFLICT DO NOTHING;
 ```
 
