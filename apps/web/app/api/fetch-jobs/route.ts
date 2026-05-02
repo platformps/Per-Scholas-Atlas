@@ -118,20 +118,50 @@ export async function POST(request: Request) {
     auth.kind === 'cron' ? 'scheduled' : 'manual';
 
   // ─── Resolve which sources to exercise this run ─────────────────────
-  // body.sources whitelist (if any) intersected with the sources whose
-  // env keys are actually configured. Active Jobs DB is always available;
-  // TheirStack only when THEIRSTACK_API_KEY is set in Vercel.
-  const configuredSources: SourceId[] = ['active-jobs-db'];
+  // Each source is gated by ITS OWN env-var presence. Removing a key in
+  // Vercel cleanly turns that source off — no code edit, no workflow
+  // change. Specifically:
+  //   - RAPIDAPI_KEY missing       → Active Jobs DB skipped
+  //   - THEIRSTACK_API_KEY missing → TheirStack skipped
+  // body.sources whitelist (if any) is then intersected with the
+  // configured set so a Monday TheirStack cron firing after the key has
+  // been removed gracefully no-ops instead of erroring.
+  const configuredSources: SourceId[] = [];
+  if (process.env.RAPIDAPI_KEY) configuredSources.push('active-jobs-db');
   if (process.env.THEIRSTACK_API_KEY) configuredSources.push('theirstack');
   const requestedSources: SourceId[] = Array.isArray(body.sources) && body.sources.length > 0
     ? (body.sources.filter((s): s is SourceId => ALL_SOURCES.includes(s as SourceId)))
     : configuredSources;
   const enabledSources: SourceId[] = requestedSources.filter(s => configuredSources.includes(s));
 
+  // Hard error: nothing is configured at all (both keys missing).
+  if (configuredSources.length === 0) {
+    return NextResponse.json(
+      {
+        error: 'No data sources configured. Set RAPIDAPI_KEY and/or THEIRSTACK_API_KEY in environment.',
+      },
+      { status: 503 },
+    );
+  }
+
+  // Soft skip: requested sources don't intersect with what's configured.
+  // Typical case: Monday TheirStack cron firing after THEIRSTACK_API_KEY
+  // has been removed. We return 200 so the GitHub Actions run stays green
+  // — the disabled source's stale data gets cleaned up by the next
+  // AJD-cadence cron via the stale-sweeper (see below). This is the
+  // "kill TheirStack with one env-var deletion" contract.
   if (enabledSources.length === 0) {
     return NextResponse.json(
-      { error: 'No sources to exercise — body.sources filtered out every configured source.', requested: body.sources, configured: configuredSources },
-      { status: 400 },
+      {
+        trigger_type: triggerType,
+        pairs: 0,
+        sources_requested: body.sources ?? null,
+        sources_configured: configuredSources,
+        sources_exercised: [],
+        note: 'No-op: requested sources are not currently configured (likely the source\'s API key was removed). Stale jobs from this source will be swept by the next AJD-cadence cron.',
+        results: [],
+      },
+      { status: 200 },
     );
   }
 
@@ -222,12 +252,35 @@ export async function POST(request: Request) {
     jobsMarkedInactiveTotal = await reconcileStillActive(sb, allSeenSourceIds, enabledSources);
   }
 
+  // ─── Stale-sweep for sources NOT exercised this run ─────────────────
+  // Runs on every successful scheduled cron (skipped on manual/filtered
+  // runs to avoid surprising global side-effects from a per-pair fetch).
+  // Catches jobs whose source has been silent for > STALE_THRESHOLD —
+  // typically because that source has been disabled (e.g. THEIRSTACK_API_KEY
+  // removed). Without this, TheirStack-sourced postings would stay
+  // still_active=true forever once the source goes dark, polluting the
+  // qualifying-jobs leaderboard with months-old listings.
+  //
+  // Threshold: 14 days = one full TheirStack cadence (Mondays) plus
+  // a 7-day buffer for one missed Monday cron. Active Jobs DB at MWF
+  // never approaches 14 days between refreshes when healthy; if it does,
+  // those jobs ARE genuinely stale and should be swept.
+  let staleSwept = 0;
+  if (triggerType === 'scheduled' && allSucceeded && !filtered) {
+    const dormantSources = ALL_SOURCES.filter(s => !enabledSources.includes(s));
+    if (dormantSources.length > 0) {
+      staleSwept = await sweepStaleFromDormantSources(sb, dormantSources);
+    }
+  }
+
   return NextResponse.json({
     trigger_type: triggerType,
     pairs: pairs.length,
     sources_requested: body.sources ?? null,
+    sources_configured: configuredSources,
     sources_exercised: enabledSources,
     jobs_marked_inactive: jobsMarkedInactiveTotal,
+    stale_swept_from_dormant_sources: staleSwept,
     reconciliation_skipped: !reconcileEligible,
     reconciliation_skip_reason: reconcileEligible
       ? null
@@ -238,6 +291,35 @@ export async function POST(request: Request) {
           : 'empty_seen_set',
     results,
   });
+}
+
+/**
+ * Marks still_active=false for jobs whose `source` is in `dormantSources`
+ * AND whose last_seen_at is older than STALE_THRESHOLD_DAYS. Used to
+ * clean up after a source goes dark (key removed from env, vendor
+ * outage, etc.) without losing the ability to bring the source back —
+ * the historical job rows stay in `jobs` and `job_scores` untouched;
+ * only the `still_active` flag is updated.
+ */
+async function sweepStaleFromDormantSources(
+  sb: ReturnType<typeof createServiceClient>,
+  dormantSources: SourceId[],
+): Promise<number> {
+  const STALE_THRESHOLD_DAYS = 14;
+  const cutoffIso = new Date(Date.now() - STALE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const { data: stale } = await sb
+    .from('jobs')
+    .select('id')
+    .eq('still_active', true)
+    .in('source', dormantSources)
+    .lt('last_seen_at', cutoffIso);
+  if (!stale || stale.length === 0) return 0;
+  const ids = (stale as Array<{ id: string }>).map(r => r.id);
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    await sb.from('jobs').update({ still_active: false }).in('id', chunk);
+  }
+  return ids.length;
 }
 
 // Union-based still_active reconciliation. Runs at the END of a cron

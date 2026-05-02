@@ -284,6 +284,41 @@ If they ever drift, you'll see HTTP 401 with `"Bad bearer token"` in the workflo
 2. Update Vercel env var.
 3. Redeploy automatically. Next scheduled fetch validates.
 
+### `THEIRSTACK_API_KEY`
+
+1. TheirStack dashboard → API → Regenerate.
+2. Update Vercel env var.
+3. Redeploy automatically. Next Monday cron validates.
+
+---
+
+## Disabling / re-enabling a data source
+
+Each data source is gated by its own env var. **Removing the env var is the only off-switch you need** — no code changes, no workflow edits, no migrations.
+
+### To pause TheirStack
+
+1. Vercel → Project Settings → Environment Variables → `THEIRSTACK_API_KEY` → Delete.
+2. Wait for redeploy (Vercel does this automatically on env change).
+
+What happens after the deletion:
+
+- **Monday TheirStack cron** still fires at 12:00 UTC, but `/api/fetch-jobs` returns 200 with `note: "No-op: requested sources are not currently configured..."`. The GitHub Actions run shows green; no PagerDuty noise.
+- **Wed/Fri Active Jobs DB cron** runs normally and additionally executes the **stale-sweep** at end-of-run: any TheirStack-sourced job with `last_seen_at` older than 14 days gets `still_active=false`. This walks the legacy TheirStack pipeline down to zero over ~2 weeks without touching the historical `jobs` / `job_scores` rows.
+- **Dashboard / homepage / jobs table** are source-agnostic (read `latest_job_scores` view); no visible glitch.
+- **`/admin/sources`** reports TheirStack as `configured: false`; live ping is skipped.
+- **Historical TheirStack jobs and scores remain in the DB.** Only the `still_active` flag changes. Re-enabling resumes from the existing rows.
+
+### To resume TheirStack
+
+1. Vercel → Project Settings → Environment Variables → add `THEIRSTACK_API_KEY` with the Bearer token.
+2. Wait for redeploy.
+3. Optionally run a manual fetch to backfill: Actions tab → Atlas Job Fetch → Run workflow → set `sources` to `theirstack`. The next regular Monday cron will then keep it fresh.
+
+### To pause Active Jobs DB
+
+Same pattern: delete `RAPIDAPI_KEY`. The M/W/F cron returns 200 no-ops, the next Monday TheirStack run will sweep stale AJD jobs (same 14-day threshold). In practice you'd never want to do this for more than the duration of an outage — AJD is the bulk-coverage source and TheirStack alone won't replace it.
+
 ### `SUPABASE_SERVICE_ROLE_KEY`
 
 1. Supabase → Project Settings → API → "Reset" next to service_role.
