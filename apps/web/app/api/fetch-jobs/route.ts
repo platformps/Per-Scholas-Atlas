@@ -102,6 +102,14 @@ interface PairResult {
   per_source_counts?: Record<string, number>;
   /** Number of jobs dropped during cross-source URL dedup. */
   deduped_drops?: number;
+  /**
+   * Sources that errored mid-pair (typically caught inside runPair so the
+   * pair as a whole still succeeds with whatever the other source returned).
+   * Surfaced to the caller so cron-level reconcile/sweep can EXCLUDE any
+   * source that errored on any pair — partial success is not a complete
+   * worldview, and reconciling on it would falsely mark live jobs inactive.
+   */
+  sources_failed?: SourceId[];
   error?: string;
 }
 
@@ -168,15 +176,28 @@ export async function POST(request: Request) {
   // Service role for all writes; bypasses RLS on the worker-only tables.
   const sb = createServiceClient();
 
-  // ─── Reactive quota guard (current state below 15%) ─────────────────
-  const quotaState = await readLatestQuota(sb);
+  // ─── Reactive + predictive quota guards (Active Jobs DB only) ───────
+  // The api_usage table tracks the AJD/RapidAPI monthly job quota.
+  // TheirStack uses a separate credit budget and is tracked per-fetch
+  // in fetch_runs.query_params.theirstack_credits_remaining, not in
+  // api_usage. So both quota checks below ONLY apply when AJD is being
+  // exercised this run. Without this gate, a low AJD quota (e.g. late
+  // in the month) would 429 a Monday TheirStack-only cron and stale
+  // out the entire TheirStack pipeline. Verified after pre-flight
+  // audit found this exact failure mode.
+  const ajdEnabled = enabledSources.includes('active-jobs-db');
+  const quotaState = ajdEnabled
+    ? await readLatestQuota(sb)
+    : { jobs_remaining: null, requests_remaining: null };
+
   if (
+    ajdEnabled &&
     quotaState.jobs_remaining != null &&
     quotaState.jobs_remaining / QUOTA_MONTHLY < QUOTA_BLOCK_RATIO
   ) {
     return NextResponse.json(
       {
-        error: 'Quota below 15% — fetch refused.',
+        error: 'Active Jobs DB quota below 15% — fetch refused.',
         quota: quotaState,
       },
       { status: 429 },
@@ -192,17 +213,17 @@ export async function POST(request: Request) {
     );
   }
 
-  // ─── Predictive quota guard (this run's estimated burn) ─────────────
-  // Refuses up front if running every active pair would push remaining
-  // below the 15% reserve. Avoids the "started OK, ended in overage"
-  // failure mode you'd otherwise hit at full multi-pair scale.
-  if (quotaState.jobs_remaining != null) {
+  // Predictive guard: refuse up front if running every active pair would
+  // push AJD remaining below the 15% reserve. Avoids the "started OK,
+  // ended in overage" failure mode at full multi-pair scale. Same
+  // AJD-only gating — not applied to TheirStack-only runs.
+  if (ajdEnabled && quotaState.jobs_remaining != null) {
     const estimatedBurn = pairs.length * ESTIMATED_JOBS_PER_PAIR;
     const wouldRemain = quotaState.jobs_remaining - estimatedBurn;
     if (wouldRemain < QUOTA_RESERVE) {
       return NextResponse.json(
         {
-          error: `Quota safety: estimated burn of ${estimatedBurn} jobs across ${pairs.length} pair${pairs.length === 1 ? '' : 's'} would leave ${wouldRemain} (< ${QUOTA_RESERVE} reserve). Refused.`,
+          error: `Active Jobs DB quota safety: estimated burn of ${estimatedBurn} jobs across ${pairs.length} pair${pairs.length === 1 ? '' : 's'} would leave ${wouldRemain} (< ${QUOTA_RESERVE} reserve). Refused.`,
           quota: quotaState,
           pairs: pairs.length,
           estimated_burn: estimatedBurn,
@@ -247,9 +268,28 @@ export async function POST(request: Request) {
   let jobsMarkedInactiveTotal = 0;
   const filtered = Boolean(body.campus_id || body.role_id);
   const allSucceeded = results.length > 0 && results.every(r => r.status === 'success');
-  const reconcileEligible = allSucceeded && !filtered && allSeenSourceIds.size > 0;
+
+  // Sources that errored on at least one pair this run. A source with even
+  // a single mid-pair failure does NOT have a complete worldview, so we
+  // exclude it from reconcile + sweep this run — otherwise jobs from the
+  // pairs that errored would get falsely marked inactive on the next run.
+  // Discovered in pre-flight audit: TheirStack 401 on bad key would error
+  // on every pair, but each pair caught the error and returned 'success'
+  // with an empty TheirStack contribution. The cron-level reconcile then
+  // saw an empty TheirStack seen-set and would have flipped EVERY
+  // TheirStack-sourced job to still_active=false.
+  const sourcesWithErrors = new Set<SourceId>();
+  for (const r of results) {
+    if (r.sources_failed) {
+      for (const s of r.sources_failed) sourcesWithErrors.add(s);
+    }
+  }
+  const trustySources = enabledSources.filter(s => !sourcesWithErrors.has(s));
+
+  const reconcileEligible =
+    allSucceeded && !filtered && allSeenSourceIds.size > 0 && trustySources.length > 0;
   if (reconcileEligible) {
-    jobsMarkedInactiveTotal = await reconcileStillActive(sb, allSeenSourceIds, enabledSources);
+    jobsMarkedInactiveTotal = await reconcileStillActive(sb, allSeenSourceIds, trustySources);
   }
 
   // ─── Stale-sweep for sources NOT exercised this run ─────────────────
@@ -265,9 +305,14 @@ export async function POST(request: Request) {
   // a 7-day buffer for one missed Monday cron. Active Jobs DB at MWF
   // never approaches 14 days between refreshes when healthy; if it does,
   // those jobs ARE genuinely stale and should be swept.
+  //
+  // Dormancy is computed against `trustySources` (NOT `enabledSources`):
+  // if TheirStack errored mid-run we treat it as "didn't truly exercise"
+  // and the next AJD-only cron will sweep dormant TheirStack jobs the
+  // same way it sweeps a properly-disabled source.
   let staleSwept = 0;
   if (triggerType === 'scheduled' && allSucceeded && !filtered) {
-    const dormantSources = ALL_SOURCES.filter(s => !enabledSources.includes(s));
+    const dormantSources = ALL_SOURCES.filter(s => !trustySources.includes(s));
     if (dormantSources.length > 0) {
       staleSwept = await sweepStaleFromDormantSources(sb, dormantSources);
     }
@@ -279,6 +324,8 @@ export async function POST(request: Request) {
     sources_requested: body.sources ?? null,
     sources_configured: configuredSources,
     sources_exercised: enabledSources,
+    sources_with_errors: Array.from(sourcesWithErrors),
+    sources_trusty_for_reconcile: trustySources,
     jobs_marked_inactive: jobsMarkedInactiveTotal,
     stale_swept_from_dormant_sources: staleSwept,
     reconciliation_skipped: !reconcileEligible,
@@ -288,7 +335,9 @@ export async function POST(request: Request) {
         ? 'one_or_more_pairs_failed'
         : filtered
           ? 'filtered_fetch'
-          : 'empty_seen_set',
+          : allSeenSourceIds.size === 0
+            ? 'empty_seen_set'
+            : 'all_sources_had_errors',
     results,
   });
 }
@@ -719,6 +768,9 @@ async function runPair(
       },
       per_source_counts: perSourceCounts,
       deduped_drops: dedupedCount,
+      sources_failed: sourcesFailed
+        .map(f => f.source)
+        .filter((s): s is SourceId => ALL_SOURCES.includes(s as SourceId)),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
