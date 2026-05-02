@@ -165,7 +165,7 @@ function groupBy<K extends string>(
 //   qualifying = "Qualifying"    (live AND non-REJECT)
 //   employers  = distinct orgs across qualifying postings
 //   buckets    = HIGH/MEDIUM/LOW/REJECT counts among live rows only — so the
-//                "market signal" mini-bar reflects the current opportunity
+//                "curriculum match" mini-bar reflects the current opportunity
 //                shape, not a 30-day historical mix that includes ghost jobs.
 function deriveComparisonRow(
   id: string,

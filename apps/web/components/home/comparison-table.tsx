@@ -7,14 +7,17 @@
 //
 // Each row carries: name + (optional) subtitle, total job records, qualifying
 // share (HIGH+MEDIUM+LOW), unique employers, top job titles (truncated), and
-// a market-signal mini-bar. Clicking a row navigates with the appropriate
+// a curriculum-match mini-bar. Clicking a row navigates with the appropriate
 // URL params layered on the existing ones — that powers the drill-down
 // flow ("see Atlanta for CFT", "see Cybersecurity for Newark", etc.).
 //
-// The market signal is the qualifying share rendered as a 0-100 bar with
-// a 5-step label (Strong/Healthy/Mixed/Light/Sparse). It's a heuristic, not
-// a model — but it gives the MD an at-a-glance read without forcing them
-// to do mental percentage math.
+// "Curriculum match" is the qualifying-share metric: of the postings live in
+// this market, how many actually align with what the curriculum prepares
+// graduates for? Rendered as a 0-100 bar with a 5-step label (Strong /
+// Healthy / Mixed / Light / Sparse). Heuristic, not a model — but it gives
+// the MD an at-a-glance read without forcing them to do mental percentage
+// math. Was previously labeled "Market signal", which was ambiguous (sounded
+// like demand strength rather than curriculum-fit rate).
 
 import Link from 'next/link';
 import { Card } from '../ui/card';
@@ -104,21 +107,21 @@ export function ComparisonTable({
                 <th className="px-3 py-2.5 text-right w-[88px]">Qualifying</th>
                 <th className="px-3 py-2.5 text-right w-[80px]">Employers</th>
                 <th className="px-3 py-2.5 text-left min-w-[200px]">Top titles</th>
-                <th className="px-6 py-2.5 text-left w-[160px]">
+                <th className="px-6 py-2.5 text-left w-[180px]">
                   <span
                     title={
-                      'Share of currently-active jobs scoring HIGH/MEDIUM/LOW.\n\n' +
-                      '• Strong  ≥ 70% qualifying\n' +
+                      'Of the postings live in this market, how many align with what the curriculum prepares graduates for? ' +
+                      'Computed as HIGH+MEDIUM+LOW ÷ still-active.\n\n' +
+                      '• Strong  ≥ 70% match\n' +
                       '• Healthy 50–69%\n' +
                       '• Mixed   30–49%\n' +
                       '• Light   15–29%\n' +
                       '• Sparse  < 15%\n\n' +
-                      'The mini-bar shows the H/M/L mix; gray = ADJACENT (not qualifying). ' +
-                      'Read it as "of the postings live in this market, how many are placement-ready?"'
+                      'The mini-bar shows the H/M/L breakdown; gray = ADJACENT (not a curriculum match).'
                     }
                     className="cursor-help border-b border-dotted border-gray-400 hover:border-gray-600"
                   >
-                    Market signal
+                    Curriculum match
                   </span>
                 </th>
               </tr>
@@ -247,15 +250,15 @@ function ComparisonRowEl({ row, rank }: { row: ComparisonRow; rank: number | nul
           )}
         </td>
         <td className="px-6 py-3 align-top">
-          <MarketSignal buckets={row.buckets} total={row.live} />
+          <CurriculumMatch buckets={row.buckets} total={row.live} />
         </td>
       </Wrapper>
     </tr>
   );
 }
 
-// ─── market-signal mini-bar ────────────────────────────────────────────────
-function MarketSignal({
+// ─── curriculum-match mini-bar ─────────────────────────────────────────────
+function CurriculumMatch({
   buckets,
   total,
 }: {
