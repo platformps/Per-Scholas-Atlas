@@ -137,9 +137,43 @@ export async function POST(request: Request) {
   const configuredSources: SourceId[] = [];
   if (process.env.RAPIDAPI_KEY) configuredSources.push('active-jobs-db');
   if (process.env.THEIRSTACK_API_KEY) configuredSources.push('theirstack');
-  const requestedSources: SourceId[] = Array.isArray(body.sources) && body.sources.length > 0
-    ? (body.sources.filter((s): s is SourceId => ALL_SOURCES.includes(s as SourceId)))
-    : configuredSources;
+
+  // Validate body.sources separately from the configured-set intersection
+  // so we can tell the difference between:
+  //   (a) "user passed nonsense like ['lvft']"     → 400, surfaces a typo
+  //   (b) "user passed a real source not enabled"  → 200 no-op (kill-switch)
+  // Conflating them, as we used to, caused a workflow_dispatch with the
+  // role name accidentally placed in the sources field to look like a
+  // legitimate kill-switch trigger.
+  let requestedSources: SourceId[];
+  if (Array.isArray(body.sources) && body.sources.length > 0) {
+    const valid = body.sources.filter((s): s is SourceId =>
+      ALL_SOURCES.includes(s as SourceId),
+    );
+    const invalid = body.sources.filter(s => !ALL_SOURCES.includes(s as SourceId));
+    if (invalid.length > 0 && valid.length === 0) {
+      // All entries were unknown — user error, not a kill-switch.
+      return NextResponse.json(
+        {
+          error: 'No valid source names in body.sources.',
+          received: body.sources,
+          valid_source_names: ALL_SOURCES,
+          hint: 'If you meant to filter by role, pass it as body.role_id; sources must be one of the known data feeds.',
+        },
+        { status: 400 },
+      );
+    }
+    if (invalid.length > 0) {
+      // Mixed valid + invalid — proceed with the valid ones but signal the typo
+      // in the response. Still legitimate (some valid sources to run).
+      console.warn(`[fetch-jobs] body.sources contained unknown entries: ${invalid.join(', ')}`);
+    }
+    requestedSources = valid;
+  } else {
+    // No sources specified → exercise everything configured (admin manual
+    // fetches, default cron behavior when sources field omitted).
+    requestedSources = configuredSources;
+  }
   const enabledSources: SourceId[] = requestedSources.filter(s => configuredSources.includes(s));
 
   // Hard error: nothing is configured at all (both keys missing).
@@ -152,12 +186,12 @@ export async function POST(request: Request) {
     );
   }
 
-  // Soft skip: requested sources don't intersect with what's configured.
-  // Typical case: Monday TheirStack cron firing after THEIRSTACK_API_KEY
-  // has been removed. We return 200 so the GitHub Actions run stays green
-  // — the disabled source's stale data gets cleaned up by the next
-  // AJD-cadence cron via the stale-sweeper (see below). This is the
-  // "kill TheirStack with one env-var deletion" contract.
+  // Soft skip: requested sources are valid names but none are currently
+  // configured (env keys removed). Typical case: Monday TheirStack cron
+  // firing after THEIRSTACK_API_KEY has been removed. We return 200 so the
+  // GitHub Actions run stays green — the disabled source's stale data gets
+  // cleaned up by the next AJD-cadence cron via the stale-sweeper (see
+  // below). This is the "kill TheirStack with one env-var deletion" contract.
   if (enabledSources.length === 0) {
     return NextResponse.json(
       {
