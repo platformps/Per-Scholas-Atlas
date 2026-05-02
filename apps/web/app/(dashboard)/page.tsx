@@ -263,10 +263,19 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   // the campus drilldown — "55 seen · 8 still active · 2 qualifying" reads
   // the same on every surface. Filtering inactive rows out at this stage
   // would collapse the two into one number.
+  //
+  // We DO drop rows for campus_ids / role_ids that are no longer in the
+  // active set. Without this, an MD who deactivates a campus (e.g. Tampa)
+  // would still see its historical 30d-window jobs counted under the
+  // headline tiles — producing nonsense like "26 of 25 active campuses".
+  // The filter bar already hides inactive campuses from selectors; this
+  // line keeps the tile counts consistent with the filter bar.
   const seen = new Set<string>();
   const rows: ScoreWithContext[] = [];
   for (const r of rawScores) {
+    if (!activeCampusIds.has(r.campus_id)) continue;
     const tax = Array.isArray(r.taxonomies) ? r.taxonomies[0] : r.taxonomies;
+    if (tax?.role_id && !activeRoleIds.has(tax.role_id)) continue;
     const jb = Array.isArray(r.jobs) ? r.jobs[0] : r.jobs;
     const roleId = tax?.role_id ?? '__no_role__';
     const key = `${r.job_id}|${r.campus_id}|${roleId}`;
