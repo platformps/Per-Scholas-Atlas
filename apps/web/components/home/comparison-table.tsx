@@ -7,17 +7,20 @@
 //
 // Each row carries: name + (optional) subtitle, total job records, qualifying
 // share (HIGH+MEDIUM+LOW), unique employers, top job titles (truncated), and
-// a curriculum-match mini-bar. Clicking a row navigates with the appropriate
-// URL params layered on the existing ones — that powers the drill-down
-// flow ("see Atlanta for CFT", "see Cybersecurity for Newark", etc.).
+// a placement-readiness mini-bar. Clicking a row navigates with the
+// appropriate URL params layered on the existing ones — that powers the
+// drill-down flow ("see Atlanta for CFT", "see Cybersecurity for Newark",
+// etc.).
 //
-// "Curriculum match" is the qualifying-share metric: of the postings live in
-// this market, how many actually align with what the curriculum prepares
-// graduates for? Rendered as a 0-100 bar with a 5-step label (Strong /
-// Healthy / Mixed / Light / Sparse). Heuristic, not a model — but it gives
-// the MD an at-a-glance read without forcing them to do mental percentage
-// math. Was previously labeled "Market signal", which was ambiguous (sounded
-// like demand strength rather than curriculum-fit rate).
+// "Placement readiness" is the qualifying-share metric: of the postings live
+// in this market, how many are placement-ready for graduates of this
+// curriculum? Rendered as a 0-100 bar with a 5-step label (Strong / Healthy /
+// Mixed / Light / Sparse). Heuristic, not a model — but it gives the MD an
+// at-a-glance read of "where can my graduates land?" without forcing them
+// to do mental percentage math. Naming history: was "Market signal" (too
+// ambiguous), briefly "Curriculum match" (process-oriented), now
+// "Placement readiness" (outcome-oriented, aligns with how Per Scholas
+// already talks about graduate outcomes).
 
 import Link from 'next/link';
 import { Card } from '../ui/card';
@@ -107,21 +110,21 @@ export function ComparisonTable({
                 <th className="px-3 py-2.5 text-right w-[88px]">Qualifying</th>
                 <th className="px-3 py-2.5 text-right w-[80px]">Employers</th>
                 <th className="px-3 py-2.5 text-left min-w-[200px]">Top titles</th>
-                <th className="px-6 py-2.5 text-left w-[180px]">
+                <th className="px-6 py-2.5 text-left w-[200px]">
                   <span
                     title={
-                      'Of the postings live in this market, how many align with what the curriculum prepares graduates for? ' +
+                      'Of the postings live in this market, how many are placement-ready for graduates of this curriculum? ' +
                       'Computed as HIGH+MEDIUM+LOW ÷ still-active.\n\n' +
-                      '• Strong  ≥ 70% match\n' +
+                      '• Strong  ≥ 70% placement-ready\n' +
                       '• Healthy 50–69%\n' +
                       '• Mixed   30–49%\n' +
                       '• Light   15–29%\n' +
                       '• Sparse  < 15%\n\n' +
-                      'The mini-bar shows the H/M/L breakdown; gray = ADJACENT (not a curriculum match).'
+                      'The mini-bar shows the H/M/L breakdown; gray = ADJACENT (not placement-ready).'
                     }
                     className="cursor-help border-b border-dotted border-gray-400 hover:border-gray-600"
                   >
-                    Curriculum match
+                    Placement readiness
                   </span>
                 </th>
               </tr>
@@ -250,15 +253,15 @@ function ComparisonRowEl({ row, rank }: { row: ComparisonRow; rank: number | nul
           )}
         </td>
         <td className="px-6 py-3 align-top">
-          <CurriculumMatch buckets={row.buckets} total={row.live} />
+          <PlacementReadiness buckets={row.buckets} total={row.live} />
         </td>
       </Wrapper>
     </tr>
   );
 }
 
-// ─── curriculum-match mini-bar ─────────────────────────────────────────────
-function CurriculumMatch({
+// ─── placement-readiness mini-bar ──────────────────────────────────────────
+function PlacementReadiness({
   buckets,
   total,
 }: {

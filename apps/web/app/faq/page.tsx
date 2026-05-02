@@ -532,7 +532,7 @@ export default async function FAQPage() {
         <p>
           If a campus shows zero records, the most common cause is "no qualifying jobs in
           the radius this window" — not a bug. The aggregate landing's "Light" or "Sparse"
-          curriculum-match label is exactly that read.
+          placement-readiness label is exactly that read.
         </p>
       </FaqSection>
 
