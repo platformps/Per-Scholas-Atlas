@@ -4,12 +4,26 @@ name: Atlas Job Fetch
 # fetch + score + DB writes. The single TS scoring engine in
 # packages/scoring is the only source of truth (no Python re-implementation).
 #
-# Cadence: Mon/Wed/Fri at 13:00 UTC (= 9am EDT / 8am EST depending on DST;
-# cron has no DST awareness). Each run hits the rolling 7-day window from
-# the active-ats-7d endpoint; alternating-day cadence balances recall against
-# noise (most postings stay live ≥48h, so we don't miss them). Quota burn
-# at one campus×role pair: ~80 jobs × 3 runs/week × ~4.3 weeks/mo ≈
-# 1,030/month, well under the 20,000 cap.
+# Two cron schedules, each pinned to one data source:
+#
+#   • Active Jobs DB (RapidAPI) — Mon/Wed/Fri at 13:00 UTC.
+#     = 9am EDT / 8am EST depending on DST. ~1,030 jobs/month.
+#     Source for the bulk of postings (ATSes — Greenhouse, Workday, etc.).
+#
+#   • TheirStack — Monday only at 12:00 UTC.
+#     = 8am EDT / 7am EST. Empirical: a network-wide LVFT pull consumed
+#     ~800 credits and the Starter plan only has 1,700/month. Once-weekly
+#     Monday pulls land us comfortably inside the budget while still
+#     surfacing the carrier/contractor/direct-Indeed postings that Active
+#     Jobs DB doesn't index. Runs an HOUR BEFORE the Monday Active Jobs DB
+#     pull, so the day's TheirStack reconcile completes before the AJD
+#     reconcile starts — no race between the two.
+#
+# Branching: GitHub Actions exposes `github.event.schedule` with the cron
+# expression that triggered the run. The step below reads it to decide
+# which `sources` to send to /api/fetch-jobs. The route's reconcile is
+# source-aware, so an AJD-only run never touches TheirStack-sourced jobs
+# (and vice versa).
 #
 # Required secrets (Settings → Secrets and Variables → Actions):
 #   VERCEL_FETCH_URL   e.g. https://<your-app>.vercel.app/api/fetch-jobs
@@ -17,9 +31,11 @@ name: Atlas Job Fetch
 
 on:
   schedule:
-    # 9am ET (during EDT) Mon, Wed, Fri = 13:00 UTC.
-    # Day-of-week field uses 0=Sunday, 1=Monday, ..., 5=Friday, 6=Saturday.
+    # Active Jobs DB — 13:00 UTC Mon/Wed/Fri (= 9am EDT / 8am EST).
+    # Day-of-week field uses 0=Sun, 1=Mon, ..., 5=Fri, 6=Sat.
     - cron: '0 13 * * 1,3,5'
+    # TheirStack — 12:00 UTC Mondays only (= 8am EDT / 7am EST).
+    - cron: '0 12 * * 1'
   workflow_dispatch:
     inputs:
       campus_id:
@@ -28,6 +44,10 @@ on:
         type: string
       role_id:
         description: 'Role filter (optional, e.g. "cft")'
+        required: false
+        type: string
+      sources:
+        description: 'Sources override — comma-separated. Empty = both. Examples: "active-jobs-db", "theirstack", "active-jobs-db,theirstack"'
         required: false
         type: string
 
@@ -47,6 +67,9 @@ jobs:
           TRIGGER_TYPE: ${{ github.event_name == 'workflow_dispatch' && 'manual' || 'scheduled' }}
           CAMPUS_ID: ${{ inputs.campus_id }}
           ROLE_ID: ${{ inputs.role_id }}
+          SOURCES_OVERRIDE: ${{ inputs.sources }}
+          # Which cron expression fired (only set on scheduled runs).
+          CRON_SCHEDULE: ${{ github.event.schedule }}
         run: |
           set -euo pipefail
           if [ -z "${URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
@@ -54,13 +77,33 @@ jobs:
             exit 1
           fi
 
+          # Decide which sources to exercise.
+          # 1. workflow_dispatch with `sources` override → use it verbatim.
+          # 2. Cron '0 13 * * 1,3,5' (Active Jobs DB schedule) → AJD only.
+          # 3. Cron '0 12 * * 1'     (TheirStack schedule)     → TheirStack only.
+          # 4. workflow_dispatch with no override               → both sources
+          #    (omit `sources` so the route falls through to default).
+          if [ -n "${SOURCES_OVERRIDE:-}" ]; then
+            SOURCES_JSON=$(echo "$SOURCES_OVERRIDE" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$"; ""))')
+          elif [ "${TRIGGER_TYPE}" = "scheduled" ]; then
+            case "${CRON_SCHEDULE}" in
+              '0 13 * * 1,3,5') SOURCES_JSON='["active-jobs-db"]' ;;
+              '0 12 * * 1')     SOURCES_JSON='["theirstack"]' ;;
+              *)                SOURCES_JSON='["active-jobs-db"]' ;;  # safe default
+            esac
+          else
+            SOURCES_JSON=""
+          fi
+
           BODY=$(jq -n \
             --arg trigger "$TRIGGER_TYPE" \
             --arg campus "$CAMPUS_ID" \
             --arg role "$ROLE_ID" \
+            --argjson sources "${SOURCES_JSON:-null}" \
             '{trigger_type: $trigger}
-             + (if $campus != "" then {campus_id: $campus} else {} end)
-             + (if $role   != "" then {role_id:   $role}   else {} end)')
+             + (if $campus  != "" then {campus_id: $campus} else {} end)
+             + (if $role    != "" then {role_id:   $role}   else {} end)
+             + (if $sources != null then {sources: $sources} else {} end)')
 
           echo "POST $URL"
           echo "Body: $BODY"

@@ -64,10 +64,26 @@ const MANUAL_THROTTLE_MS = 24 * 60 * 60 * 1000;
 const MAX_PER_PAIR = 500;              // pagination cap
 
 // ─────────────────────────────────────────────────────────────────────────────
+type SourceId = 'active-jobs-db' | 'theirstack';
+const ALL_SOURCES: SourceId[] = ['active-jobs-db', 'theirstack'];
+
 interface FetchBody {
   trigger_type?: 'scheduled' | 'manual';
   campus_id?: string;
   role_id?: string;
+  /**
+   * Optional whitelist of data sources to exercise on this run. When
+   * omitted, all configured sources fire (current default). Used by the
+   * cron to do source-cadence splitting:
+   *   - Mon: ['active-jobs-db', 'theirstack']  (or omitted — same effect)
+   *   - Wed/Fri: ['active-jobs-db']            (TheirStack stays quiet
+   *     to conserve Starter-tier credits)
+   * Reconcile is source-aware: a run with sources=['active-jobs-db']
+   * only marks active-jobs-db-sourced jobs inactive — TheirStack-only
+   * postings are left alone so they survive the gap until the next
+   * Monday TheirStack pull.
+   */
+  sources?: SourceId[];
 }
 
 interface PairResult {
@@ -100,6 +116,24 @@ export async function POST(request: Request) {
   const triggerType: 'scheduled' | 'manual' =
     body.trigger_type === 'manual' ? 'manual' :
     auth.kind === 'cron' ? 'scheduled' : 'manual';
+
+  // ─── Resolve which sources to exercise this run ─────────────────────
+  // body.sources whitelist (if any) intersected with the sources whose
+  // env keys are actually configured. Active Jobs DB is always available;
+  // TheirStack only when THEIRSTACK_API_KEY is set in Vercel.
+  const configuredSources: SourceId[] = ['active-jobs-db'];
+  if (process.env.THEIRSTACK_API_KEY) configuredSources.push('theirstack');
+  const requestedSources: SourceId[] = Array.isArray(body.sources) && body.sources.length > 0
+    ? (body.sources.filter((s): s is SourceId => ALL_SOURCES.includes(s as SourceId)))
+    : configuredSources;
+  const enabledSources: SourceId[] = requestedSources.filter(s => configuredSources.includes(s));
+
+  if (enabledSources.length === 0) {
+    return NextResponse.json(
+      { error: 'No sources to exercise — body.sources filtered out every configured source.', requested: body.sources, configured: configuredSources },
+      { status: 400 },
+    );
+  }
 
   // Service role for all writes; bypasses RLS on the worker-only tables.
   const sb = createServiceClient();
@@ -157,12 +191,12 @@ export async function POST(request: Request) {
 
   const results: PairResult[] = [];
   for (const pair of pairs) {
-    results.push(await runPair(sb, pair, triggerType, auth, allSeenSourceIds));
+    results.push(await runPair(sb, pair, triggerType, auth, allSeenSourceIds, enabledSources));
   }
 
-  // ─── Union-based still_active reconciliation ───────────────────────
+  // ─── Source-aware still_active reconciliation ──────────────────────
   // Only safe when every pair succeeded AND we fetched the full active
-  // set (no campus_id / role_id filter). Two reasons we skip otherwise:
+  // set (no campus_id / role_id filter). Reasons we skip otherwise:
   //
   //   1. Failure: a partial picture would mark missing-but-not-actually-
   //      missing jobs inactive. Next successful cron will reconcile.
@@ -173,17 +207,26 @@ export async function POST(request: Request) {
   //      still_active=false; the next CFT fetch refreshed only the
   //      jobs that re-appeared in that fetch. Reconcile is a global
   //      operation so it can only run on a global fetch.
+  //
+  // Source-aware: when this run only exercised a SUBSET of sources
+  // (e.g. Wed/Fri Active-Jobs-DB-only run), we ONLY reconcile jobs
+  // whose `source` column is in `enabledSources`. TheirStack-only
+  // postings are left alone until the next Monday TheirStack pull
+  // refreshes their last_seen_at — otherwise an Active-Jobs-DB-only
+  // run would flip every TheirStack-sourced job inactive.
   let jobsMarkedInactiveTotal = 0;
   const filtered = Boolean(body.campus_id || body.role_id);
   const allSucceeded = results.length > 0 && results.every(r => r.status === 'success');
   const reconcileEligible = allSucceeded && !filtered && allSeenSourceIds.size > 0;
   if (reconcileEligible) {
-    jobsMarkedInactiveTotal = await reconcileStillActive(sb, allSeenSourceIds);
+    jobsMarkedInactiveTotal = await reconcileStillActive(sb, allSeenSourceIds, enabledSources);
   }
 
   return NextResponse.json({
     trigger_type: triggerType,
     pairs: pairs.length,
+    sources_requested: body.sources ?? null,
+    sources_exercised: enabledSources,
     jobs_marked_inactive: jobsMarkedInactiveTotal,
     reconciliation_skipped: !reconcileEligible,
     reconciliation_skip_reason: reconcileEligible
@@ -206,14 +249,19 @@ export async function POST(request: Request) {
 async function reconcileStillActive(
   sb: ReturnType<typeof createServiceClient>,
   seenSourceIds: Set<string>,
+  sourcesExercised: SourceId[],
 ): Promise<number> {
+  // Only reconcile jobs from sources we actually pulled this run.
+  // E.g. a Wed/Fri ['active-jobs-db']-only run skips TheirStack-sourced
+  // jobs; their last_seen_at gets refreshed on the next Monday run.
   const { data: activeNow } = await sb
     .from('jobs')
-    .select('id, source_id')
-    .eq('still_active', true);
+    .select('id, source_id, source')
+    .eq('still_active', true)
+    .in('source', sourcesExercised);
   if (!activeNow) return 0;
   const inactiveIds: string[] = [];
-  for (const r of activeNow as Array<{ id: string; source_id: string }>) {
+  for (const r of activeNow as Array<{ id: string; source_id: string; source: string }>) {
     if (!seenSourceIds.has(r.source_id)) inactiveIds.push(r.id);
   }
   if (inactiveIds.length === 0) return 0;
@@ -280,6 +328,7 @@ async function runPair(
   triggerType: 'scheduled' | 'manual',
   auth: Awaited<ReturnType<typeof authorizeAdminOrCron>>,
   allSeenSourceIds: Set<string>,
+  enabledSources: SourceId[],
 ): Promise<PairResult> {
   const { campus, role } = pair;
 
@@ -352,27 +401,36 @@ async function runPair(
     const sourcesFailed: { source: string; error: string }[] = [];
 
     // ── Source 1: Active Jobs DB ──
-    sourcesAttempted.push('active-jobs-db');
-    const { rawJobs: ajdJobs, quota } = await fetchAllActiveJobs({
-      titleFilter,
-      locationFilter,
-      pageSize: 100,
-      maxTotal: MAX_PER_PAIR,
-    });
-    for (const raw of ajdJobs) {
-      collected.push({
-        raw,
-        payload: normalizeApiJob(raw),
-        dbRow: rawJobToDbRow(raw),
-        source: 'active-jobs-db',
+    let ajdJobs: unknown[] = [];
+    let quota: { jobs_remaining: number | null; requests_remaining: number | null } = {
+      jobs_remaining: null,
+      requests_remaining: null,
+    };
+    if (enabledSources.includes('active-jobs-db')) {
+      sourcesAttempted.push('active-jobs-db');
+      const ajdResp = await fetchAllActiveJobs({
+        titleFilter,
+        locationFilter,
+        pageSize: 100,
+        maxTotal: MAX_PER_PAIR,
       });
+      ajdJobs = ajdResp.rawJobs;
+      quota = ajdResp.quota;
+      for (const raw of ajdJobs) {
+        collected.push({
+          raw,
+          payload: normalizeApiJob(raw),
+          dbRow: rawJobToDbRow(raw),
+          source: 'active-jobs-db',
+        });
+      }
     }
 
-    // ── Source 2: TheirStack (only if env var is set) ──
+    // ── Source 2: TheirStack (only if requested AND env var is set) ──
     let theirStackQuota: TheirStackQuotaSnapshot = { api_credits_remaining: null };
     let theirStackRawCount = 0;
     const theirStackKey = process.env.THEIRSTACK_API_KEY;
-    if (theirStackKey) {
+    if (enabledSources.includes('theirstack') && theirStackKey) {
       sourcesAttempted.push('theirstack');
       try {
         const { rawJobs: tsJobs, quota: tsQuota } = await fetchAllTheirStackJobs({

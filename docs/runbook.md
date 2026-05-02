@@ -13,8 +13,9 @@
 | Source | `github.com/platformps/Per-Scholas-Atlas` |
 | Deploy | Vercel project (production domain set in Vercel → Settings → Domains) |
 | Database | Supabase project (URL ends in `.supabase.co`) |
-| Cron | GitHub Actions, `Atlas Job Fetch` workflow, Mon/Wed/Fri 13:00 UTC |
+| Cron | GitHub Actions, `Atlas Job Fetch` workflow. **Active Jobs DB:** Mon/Wed/Fri 13:00 UTC. **TheirStack:** Monday only 12:00 UTC |
 | RapidAPI | Active Jobs DB Ultra plan, `active-ats-7d` endpoint |
+| TheirStack | Starter plan ($59/mo, 1700 credits). Bearer token in `THEIRSTACK_API_KEY` |
 | Admin email | `ashahparan@perscholas.org` (only). Promoted via the `handle_new_user` Postgres trigger |
 | Local repo | `/Users/ahmshahparan/Documents/Claude/Projects/Per Scholas ATLAS - 4/per-scholas-job-intel/` |
 
@@ -28,11 +29,13 @@
 ## Architecture at a glance
 
 ```
-GitHub Actions cron (MWF 13:00 UTC)
-        │  POST /api/fetch-jobs  (Authorization: Bearer CRON_SECRET)
+GitHub Actions cron
+   ├── 13:00 UTC MWF → POST /api/fetch-jobs body={sources:["active-jobs-db"]}
+   └── 12:00 UTC Mon → POST /api/fetch-jobs body={sources:["theirstack"]}
+        │  Authorization: Bearer CRON_SECRET
         ▼
 Vercel: apps/web (Next.js 14)
-  ├── /api/fetch-jobs   → calls RapidAPI, normalizes, scores, writes to Supabase
+  ├── /api/fetch-jobs   → fans out to enabled sources, normalizes, scores, writes to Supabase
   ├── /api/rescore      → re-scores existing jobs against active taxonomy (no API call)
   └── /(dashboard)      → server-rendered Atlas dashboard reading from Supabase
         │
@@ -130,7 +133,14 @@ In `github.com/platformps/Per-Scholas-Atlas/settings/secrets/actions`, add:
 | `VERCEL_FETCH_URL` | `https://<your-vercel-domain>/api/fetch-jobs` |
 | `CRON_SECRET` | **byte-identical** to the value in Vercel env |
 
-The workflow file is `.github/workflows/weekly-fetch.yml` (named "Atlas Job Fetch"; the filename is historical). It fires on cron `0 13 * * 1,3,5` (Mon/Wed/Fri 13:00 UTC ≈ 9am EDT). To test before the next scheduled run: Actions tab → Atlas Job Fetch → Run workflow → optionally pass `campus_id=atlanta` and `role_id=cft`.
+The workflow file is `.github/workflows/weekly-fetch.yml` (named "Atlas Job Fetch"; the filename is historical). Two cron schedules, each pinned to one source:
+
+- `0 13 * * 1,3,5` — Active Jobs DB only (Mon/Wed/Fri 13:00 UTC ≈ 9am EDT / 8am EST). Sends `sources: ["active-jobs-db"]`.
+- `0 12 * * 1` — TheirStack only (Mondays 12:00 UTC ≈ 8am EDT / 7am EST). Sends `sources: ["theirstack"]`. Runs an hour BEFORE the Monday Active Jobs DB pull, so the day's two reconciles don't race.
+
+The route's reconcile is source-aware (filters `jobs` by `source IN sources_exercised`), so an Active-Jobs-DB-only run never marks TheirStack-sourced postings inactive, and vice versa.
+
+To test before the next scheduled run: Actions tab → Atlas Job Fetch → Run workflow. Optional inputs: `campus_id=atlanta`, `role_id=cft`, `sources=active-jobs-db,theirstack` (comma-separated; empty = both).
 
 ---
 
@@ -310,9 +320,17 @@ If they ever drift, you'll see HTTP 401 with `"Bad bearer token"` in the workflo
 
 These aren't obvious from the code. Captured here so they don't have to be re-litigated.
 
-### Why MWF 9am ET cron, not daily or weekly
+### Why MWF 9am ET cron, not daily or weekly (Active Jobs DB)
 
 RapidAPI Active Jobs DB only exposes `active-ats-7d` (7-day window) on the Ultra plan. There's no 30-day endpoint. To improve recall without raising the per-fetch cost, we run the same 7-day window query 3×/week. Quota math: ~80 jobs × 3 runs/week × 4.3 weeks/month ≈ 1,030 jobs/month per (campus, role) pair. Well under the 20,000 cap.
+
+### Why TheirStack runs Monday only, not MWF
+
+Different cost model: TheirStack's Starter plan is $59/mo for 1,700 credits, where one network-wide LVFT pull empirically consumed ~800 credits. MWF cadence would burn ~9,600/mo — 5.6× over budget — and require upgrading to the $169 Pro tier just to keep the cron green. Once-weekly Monday pulls cost ~3,200/mo for both roles combined; comfortably inside the Starter envelope. The trade-off: TheirStack-sourced postings get up to 7 days of staleness in `last_seen_at` between Monday refreshes (vs. 2 days for AJD postings). Acceptable because TheirStack jobs are already a long-tail supplement to AJD's ATS coverage, and the homepage filters by `still_active` (not by recency); jobs that vanish between Mondays will get correctly flipped on the next Monday reconcile.
+
+### Why per-source reconcile, not global
+
+Reconcile marks `still_active = false` for jobs whose `source_id` wasn't in this run's seen-set. With AJD-only Wed/Fri runs, a global reconcile would flip every TheirStack-sourced job inactive (because TheirStack didn't run that day), then the homepage would mis-report the qualifying pipeline as half its real size until Monday. Source-aware reconcile (filter `jobs.source IN sources_exercised`) gives each source its own staleness window: AJD jobs reconcile on every M/W/F run; TheirStack jobs reconcile only on the Monday TheirStack run. The two pipelines are independent.
 
 ### Why scoring lives in the web API, not in a worker
 
